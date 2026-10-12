@@ -1,0 +1,35 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{lipsum,tikz,xcolor}
+\usepackage[colorlinks=true,linkcolor=blue,urlcolor=teal,bookmarks=true,bookmarksopen=true]{hyperref}
+\title{NightPdf Sample Document}
+\author{Test Fixture}
+\begin{document}
+\maketitle
+\tableofcontents
+\noindent Jump to the figure in Section~\ref{sec:fig} on page~\pageref{fig:circles}, or read the conclusion in Section~\ref{sec:end}.
+See also \href{https://www.apple.com}{an external link}.
+\newpage
+\section{Introduction}\label{sec:intro}
+\lipsum[1-4]\footnote{A footnote that links back to Section~\ref{sec:end}.}
+\subsection{Background}
+\lipsum[5-9]
+\subsection{Motivation}
+\lipsum[10-14]
+\section{Method}
+\lipsum[15-20]
+\subsection{Details}
+\lipsum[21-26]
+\section{Figures}\label{sec:fig}
+\begin{figure}[h]\centering
+\begin{tikzpicture}
+\fill[red!80] (0,0) circle (1.2); \fill[green!60!black] (2.8,0) circle (1.2); \fill[blue!80] (5.6,0) circle (1.2);
+\fill[orange] (8.4,0) circle (1.2);
+\end{tikzpicture}
+\caption{Colored circles to check dark-mode rendering.}\label{fig:circles}
+\end{figure}
+\lipsum[27-34]
+\section{Conclusion}\label{sec:end}
+Go back to the \hyperref[sec:intro]{introduction} or the figure on page~\pageref{fig:circles}.
+\lipsum[35-45]
+\end{document}

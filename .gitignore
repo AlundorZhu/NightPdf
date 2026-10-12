@@ -1,0 +1,7 @@
+build/
+xcuserdata/
+*.xcuserstate
+TestAssets/*.aux
+TestAssets/*.log
+TestAssets/*.out
+TestAssets/*.toc
