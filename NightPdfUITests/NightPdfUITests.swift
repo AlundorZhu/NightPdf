@@ -2,7 +2,7 @@
 //  NightPdfUITests.swift
 //  NightPdfUITests
 //
-//  Run with scripts/run-ui-tests.sh, which copies TestAssets/sample.pdf into the
+//  Run with scripts/run-ui-tests.sh, which copies the TestAssets PDFs into the
 //  app's Documents folder first. Tap coordinates assume an iPhone 17 Pro.
 //
 
@@ -16,17 +16,21 @@ final class NightPdfUITests: XCTestCase {
         app = XCUIApplication()
         app.launchArguments = ["-resetState"]
         app.launch()
+    }
 
-        let cell = app.cells["Sample Paper, pdf"]
+    private func open(_ name: String = "Sample Paper") {
+        let cell = app.cells["\(name), pdf"]
         if !cell.waitForExistence(timeout: 5) {
             app.buttons["Browse"].firstMatch.tap()
         }
-        XCTAssert(cell.waitForExistence(timeout: 5), "Seed TestAssets/sample.pdf first")
+        XCTAssert(cell.waitForExistence(timeout: 5), "Seed the TestAssets PDFs first")
+        sleep(2)   // let the browser settle, or the tap can be dropped
         cell.tap()
         sleep(3)
     }
 
     func testLinkJumpAndReturn() {
+        open()
         snap("open")
         tapPoint(x: 0.177, y: 0.391)   // "3 Figures" in the table of contents
         sleep(1)
@@ -41,6 +45,7 @@ final class NightPdfUITests: XCTestCase {
     }
 
     func testChromeContentsAndMenu() {
+        open()
         tapPoint(x: 0.5, y: 0.575)   // blank area of page 1
         sleep(1)
         snap("chrome-hidden")
@@ -70,6 +75,7 @@ final class NightPdfUITests: XCTestCase {
     }
 
     func testSearchLayoutAndBookmarks() {
+        open()
         app.buttons["Search"].tap()
         sleep(1)
         app.typeText("Conclusion\n")
@@ -99,6 +105,31 @@ final class NightPdfUITests: XCTestCase {
         app.buttons["More"].tap()
         app.buttons["Layout"].tap()
         app.buttons["Vertical Scrolling"].tap()
+    }
+
+    /// Rotated and cropped pages; screenshots show whether dark mode covers them fully.
+    func testRotatedAndCroppedPages() {
+        open("Edge Cases")
+        XCTAssert(app.buttons["Page 1 of 4"].exists)
+        for step in 1...3 {
+            app.swipeUp(velocity: .slow)
+            sleep(1)
+            snap("edge-\(step)")
+        }
+        app.buttons["Contents"].tap()
+        app.buttons["Pages"].tap()
+        sleep(1)
+        snap("edge-thumbnails")
+    }
+
+    func testPasswordProtected() {
+        open("Locked")
+        let field = app.secureTextFields.firstMatch
+        XCTAssert(field.waitForExistence(timeout: 3))
+        field.typeText("wrong\n")
+        XCTAssert(app.staticTexts["Incorrect password. Try again."].waitForExistence(timeout: 2))
+        field.typeText("test\n")   // focus must stay in the field after a failed attempt
+        XCTAssert(app.buttons["Page 1 of 9"].waitForExistence(timeout: 3))
     }
 
     private func tapPoint(x: Double, y: Double) {

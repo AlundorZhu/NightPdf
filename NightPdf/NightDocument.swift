@@ -26,7 +26,7 @@ final class NightPage: PDFPage {
 
         context.saveGState()
         // The clip can extend past the page into the gaps PDFView paints itself.
-        let area = context.boundingBoxOfClipPath.intersection(bounds(for: box))
+        let area = context.boundingBoxOfClipPath.intersection(CGRect(origin: .zero, size: displaySize(for: box)))
         context.clip(to: area)
         context.setBlendMode(.difference)
         context.setFillColor(gray: Self.inkLevel, alpha: 1)
@@ -38,5 +38,12 @@ final class NightPage: PDFPage {
         super.draw(with: box, to: context)
         context.endTransparencyLayer()
         context.restoreGState()
+    }
+
+    /// `draw(with:to:)` works in display space: the box moved to the origin,
+    /// with width and height swapped for pages rotated a quarter turn.
+    nonisolated func displaySize(for box: PDFDisplayBox) -> CGSize {
+        let size = bounds(for: box).size
+        return rotation % 180 == 0 ? size : CGSize(width: size.height, height: size.width)
     }
 }

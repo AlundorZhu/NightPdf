@@ -233,10 +233,10 @@ final class ReaderModel {
         // PDFView owns the find delegate, so watch for the navigator closing.
         Timer.scheduledTimer(withTimeInterval: 0.3, repeats: true) { [weak self, weak interaction] timer in
             MainActor.assumeIsolated {
-                guard let self, let interaction, interaction.isFindNavigatorVisible else {
+                guard let self else { return timer.invalidate() }
+                if interaction?.isFindNavigatorVisible != true {
                     timer.invalidate()
-                    withAnimation { self?.isSearching = false }
-                    return
+                    withAnimation { self.isSearching = false }
                 }
             }
         }
@@ -256,9 +256,8 @@ final class ReaderModel {
     /// Renders through `draw(with:to:)` so thumbnails match the page colors;
     /// `PDFPage.thumbnail(of:for:)` skips subclass drawing.
     func thumbnail(forPage index: Int, fitting size: CGSize) -> UIImage? {
-        guard let page = document?.page(at: index) else { return nil }
-        let bounds = page.bounds(for: .cropBox)
-        let pageSize = page.rotation % 180 == 0 ? bounds.size : CGSize(width: bounds.height, height: bounds.width)
+        guard let page = document?.page(at: index) as? NightPage else { return nil }
+        let pageSize = page.displaySize(for: .cropBox)
         let scale = min(size.width / pageSize.width, size.height / pageSize.height)
         let imageSize = CGSize(width: pageSize.width * scale, height: pageSize.height * scale)
 
@@ -268,7 +267,6 @@ final class ReaderModel {
             cg.fill(CGRect(origin: .zero, size: imageSize))
             cg.translateBy(x: 0, y: imageSize.height)
             cg.scaleBy(x: scale, y: -scale)
-            cg.concatenate(page.transform(for: .cropBox))
             page.draw(with: .cropBox, to: cg)
         }
     }

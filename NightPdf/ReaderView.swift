@@ -247,6 +247,9 @@ private struct UnlockView: View {
 
     private func unlock() {
         failed = !model.unlock(password: password)
-        if failed { password = "" }
+        if failed {
+            password = ""
+            focused = true
+        }
     }
 }

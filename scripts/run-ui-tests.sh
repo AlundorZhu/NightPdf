@@ -1,5 +1,5 @@
 #!/bin/zsh
-# Builds NightPdf, seeds the sample PDF into the simulator, and runs the UI tests.
+# Builds NightPdf, seeds the test PDFs into the simulator, and runs the UI tests.
 # Usage: scripts/run-ui-tests.sh [simulator name] [screenshot dir]
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -18,6 +18,8 @@ xcrun simctl install "$UDID" "$DERIVED/Build/Products/Debug-iphonesimulator/Nigh
 DOCS="$(xcrun simctl get_app_container "$UDID" ucdavis.NightPdf data)/Documents"
 mkdir -p "$DOCS"
 cp TestAssets/sample.pdf "$DOCS/Sample Paper.pdf"
+cp TestAssets/edge-cases.pdf "$DOCS/Edge Cases.pdf"
+cp TestAssets/locked.pdf "$DOCS/Locked.pdf"
 
 [[ -n "$SHOTS" ]] && mkdir -p "$SHOTS" && export TEST_RUNNER_NIGHTPDF_SCREENSHOTS="$(cd "$SHOTS" && pwd)"
 xcodebuild -project NightPdf.xcodeproj -scheme NightPdf -destination "id=$UDID" \
