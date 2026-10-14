@@ -19,7 +19,6 @@ DOCS="$(xcrun simctl get_app_container "$UDID" ucdavis.NightPdf data)/Documents"
 mkdir -p "$DOCS"
 cp TestAssets/sample.pdf "$DOCS/Sample Paper.pdf"
 cp TestAssets/edge-cases.pdf "$DOCS/Edge Cases.pdf"
-cp TestAssets/locked.pdf "$DOCS/Locked.pdf"
 
 [[ -n "$SHOTS" ]] && mkdir -p "$SHOTS" && export TEST_RUNNER_NIGHTPDF_SCREENSHOTS="$(cd "$SHOTS" && pwd)"
 xcodebuild -project NightPdf.xcodeproj -scheme NightPdf -destination "id=$UDID" \

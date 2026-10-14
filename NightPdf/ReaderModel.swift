@@ -66,7 +66,6 @@ final class ReaderModel {
     @ObservationIgnored private var suppressHistory = false
     @ObservationIgnored private var appliedLayout: PageLayout?
 
-    private(set) var isLocked: Bool
     private(set) var pageCount = 0
     private(set) var currentPageIndex = 0
     private(set) var returnStack: [ReturnPoint] = []
@@ -79,21 +78,9 @@ final class ReaderModel {
     init(data: Data, fileURL: URL?) {
         self.data = data
         self.fileURL = fileURL
-        document = NightDocument(data: data)
-        isLocked = document?.isLocked ?? false
-        if !isLocked { loadContents() }
-    }
-
-    // MARK: - Opening
-
-    func unlock(password: String) -> Bool {
-        guard let document, document.unlock(withPassword: password) else { return false }
-        isLocked = false
-        loadContents()
-        return true
-    }
-
-    private func loadContents() {
+        // Password-protected files aren't supported; they show as unopenable.
+        let document = NightDocument(data: data).flatMap { $0.isLocked ? nil : $0 }
+        self.document = document
         guard let document else { return }
         pageCount = document.pageCount
         outline = Self.outlineNodes(of: document.outlineRoot, in: document)

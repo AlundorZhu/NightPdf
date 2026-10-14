@@ -122,16 +122,6 @@ final class NightPdfUITests: XCTestCase {
         snap("edge-thumbnails")
     }
 
-    func testPasswordProtected() {
-        open("Locked")
-        let field = app.secureTextFields.firstMatch
-        XCTAssert(field.waitForExistence(timeout: 3))
-        field.typeText("wrong\n")
-        XCTAssert(app.staticTexts["Incorrect password. Try again."].waitForExistence(timeout: 2))
-        field.typeText("test\n")   // focus must stay in the field after a failed attempt
-        XCTAssert(app.buttons["Page 1 of 9"].waitForExistence(timeout: 3))
-    }
-
     private func tapPoint(x: Double, y: Double) {
         app.coordinate(withNormalizedOffset: CGVector(dx: x, dy: y)).tap()
     }

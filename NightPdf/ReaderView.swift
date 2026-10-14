@@ -18,10 +18,8 @@ struct ReaderView: View {
                     ContentUnavailableView(
                         "Can’t Open PDF",
                         systemImage: "exclamationmark.triangle",
-                        description: Text("The file may be damaged or isn’t a valid PDF.")
+                        description: Text("The file may be damaged, password protected, or not a valid PDF.")
                     )
-                } else if model.isLocked {
-                    UnlockView(model: model)
                 } else {
                     DocumentReader(model: model)
                 }
@@ -208,48 +206,5 @@ private struct DocumentReader: View {
     private func goToEnteredPage() {
         guard let number = Int(pageText.trimmingCharacters(in: .whitespaces)) else { return }
         model.go(toPage: min(max(number, 1), model.pageCount) - 1)
-    }
-}
-
-private struct UnlockView: View {
-    let model: ReaderModel
-
-    @State private var password = ""
-    @State private var failed = false
-    @FocusState private var focused: Bool
-
-    var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "lock.doc")
-                .font(.system(size: 56, weight: .light))
-                .foregroundStyle(.secondary)
-            Text("This PDF Is Password Protected")
-                .font(.title3.weight(.semibold))
-            SecureField("Password", text: $password)
-                .textContentType(.password)
-                .focused($focused)
-                .onSubmit(unlock)
-                .padding(12)
-                .background(.fill.tertiary, in: .rect(cornerRadius: 12))
-                .frame(maxWidth: 320)
-            if failed {
-                Text("Incorrect password. Try again.")
-                    .font(.footnote)
-                    .foregroundStyle(.red)
-            }
-            Button("Unlock", action: unlock)
-                .buttonStyle(.glassProminent)
-                .disabled(password.isEmpty)
-        }
-        .padding()
-        .onAppear { focused = true }
-    }
-
-    private func unlock() {
-        failed = !model.unlock(password: password)
-        if failed {
-            password = ""
-            focused = true
-        }
     }
 }
