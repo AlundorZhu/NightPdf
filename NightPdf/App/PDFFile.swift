@@ -13,6 +13,7 @@ nonisolated struct PDFFile: FileDocument {
     let data: Data
 
     init(configuration: ReadConfiguration) throws {
+        Signposts.begin("Open Document")
         guard let data = configuration.file.regularFileContents else {
             throw CocoaError(.fileReadCorruptFile)
         }

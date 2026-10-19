@@ -52,6 +52,7 @@ struct ContentsView: View {
         }
         .frame(maxHeight: .infinity, alignment: .top)
         .presentationDetents([.medium, .large])
+        .onAppear { Signposts.end("Show Contents") }
     }
 
     @ViewBuilder
@@ -74,7 +75,7 @@ struct ContentsView: View {
                         Text(node.title)
                             .foregroundStyle(.primary)
                         Spacer()
-                        if let page = node.pageIndex {
+                        if let page = model.pageIndex(of: node) {
                             Text("\(page + 1)")
                                 .monospacedDigit()
                                 .foregroundStyle(.secondary)
@@ -152,7 +153,7 @@ private struct PageThumbnail: View {
                 .foregroundStyle(isCurrent ? Color.accentColor : .secondary)
         }
         .task(id: model.invertsPages) {
-            image = model.thumbnail(forPage: index, fitting: CGSize(width: 130, height: 170))
+            image = await model.thumbnail(forPage: index, fitting: CGSize(width: 130, height: 170))
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Page \(index + 1)")

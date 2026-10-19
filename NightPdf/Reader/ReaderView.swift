@@ -112,6 +112,7 @@ private struct DocumentReader: View {
         GlassEffectContainer(spacing: 12) {
             HStack(spacing: 12) {
                 Button {
+                    Signposts.begin("Show Contents")
                     showingContents = true
                 } label: {
                     Image(systemName: "list.bullet")

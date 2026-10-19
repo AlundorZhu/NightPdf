@@ -3,6 +3,7 @@
 //  NightPdf
 //
 
+import os
 import PDFKit
 import SwiftUI
 
@@ -16,7 +17,6 @@ struct OutlineNode: Identifiable {
     let id: Int
     let title: String
     let destination: PDFDestination?
-    let pageIndex: Int?
     let children: [OutlineNode]?
 }
 
@@ -42,11 +42,15 @@ final class ReaderModel {
         self.data = data
         self.fileURL = fileURL
         // Password-protected files aren't supported; they show as unopenable.
-        let document = NightDocument(data: data).flatMap { $0.isLocked ? nil : $0 }
+        let document = Signposts.signposter.withIntervalSignpost("Load Document") {
+            NightDocument(data: data)
+        }.flatMap { $0.isLocked ? nil : $0 }
         self.document = document
         guard let document else { return }
         pageCount = document.pageCount
-        outline = Self.outlineNodes(of: document.outlineRoot, in: document)
+        outline = Signposts.signposter.withIntervalSignpost("Build Outline") {
+            Self.outlineNodes(of: document.outlineRoot)
+        }
         currentPageIndex = min(defaults.integer(forKey: key("lastPage")), max(pageCount - 1, 0))
     }
 
@@ -180,22 +184,21 @@ final class ReaderModel {
 
     // MARK: - Helpers
 
-    /// Renders through `draw(with:to:)` so thumbnails match the page colors;
-    /// `PDFPage.thumbnail(of:for:)` skips subclass drawing.
-    func thumbnail(forPage index: Int, fitting size: CGSize) -> UIImage? {
+    func thumbnail(forPage index: Int, fitting size: CGSize) async -> UIImage? {
         guard let page = document?.page(at: index) as? NightPage else { return nil }
-        let pageSize = page.displaySize(for: .cropBox)
-        let scale = min(size.width / pageSize.width, size.height / pageSize.height)
-        let imageSize = CGSize(width: pageSize.width * scale, height: pageSize.height * scale)
+        return await Self.renderThumbnail(of: page, fitting: size)
+    }
 
-        return UIGraphicsImageRenderer(size: imageSize).image { context in
-            let cg = context.cgContext
-            UIColor.white.setFill()
-            cg.fill(CGRect(origin: .zero, size: imageSize))
-            cg.translateBy(x: 0, y: imageSize.height)
-            cg.scaleBy(x: scale, y: -scale)
-            page.draw(with: .cropBox, to: cg)
-        }
+    /// Off the main thread, so scrolling the page grid doesn't stall on rendering.
+    @concurrent
+    private nonisolated static func renderThumbnail(of page: NightPage, fitting size: CGSize) async -> UIImage? {
+        guard !Task.isCancelled else { return nil }   // scrolled away before its turn
+        return page.thumbnail(fitting: size)
+    }
+
+    func pageIndex(of node: OutlineNode) -> Int? {
+        guard let document, let page = node.destination?.page else { return nil }
+        return document.index(for: page)
     }
 
     private var defaults: UserDefaults { .standard }
@@ -204,7 +207,9 @@ final class ReaderModel {
         "\(name):\(fileURL?.path(percentEncoded: false) ?? "untitled")"
     }
 
-    private static func outlineNodes(of item: PDFOutline?, in document: PDFDocument) -> [OutlineNode] {
+    /// Resolving a destination's page is slow (~0.1 ms each), so that waits
+    /// until a row asks for it in `pageIndex(of:)`.
+    private static func outlineNodes(of item: PDFOutline?) -> [OutlineNode] {
         var nextID = 0
         func build(_ item: PDFOutline) -> [OutlineNode] {
             (0..<item.numberOfChildren).compactMap { item.child(at: $0) }.map { child in
@@ -215,7 +220,6 @@ final class ReaderModel {
                     id: nextID,
                     title: child.label ?? "Untitled",
                     destination: destination,
-                    pageIndex: destination?.page.map { document.index(for: $0) },
                     children: children.isEmpty ? nil : children
                 )
             }

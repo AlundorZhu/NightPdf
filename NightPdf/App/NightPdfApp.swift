@@ -10,11 +10,10 @@ import SwiftUI
 @main
 struct NightPdfApp: App {
     init() {
-        #if DEBUG
+        // Set by the UI tests, which also run against Release builds.
         if CommandLine.arguments.contains("-resetState"), let id = Bundle.main.bundleIdentifier {
             UserDefaults.standard.removePersistentDomain(forName: id)
         }
-        #endif
     }
 
     var body: some Scene {

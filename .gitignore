@@ -6,3 +6,4 @@ TestAssets/*.log
 TestAssets/*.out
 TestAssets/*.toc
 .DS_Store
+TestAssets/large.pdf
