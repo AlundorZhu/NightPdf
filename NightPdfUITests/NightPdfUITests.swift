@@ -74,18 +74,16 @@ final class NightPdfUITests: XCTestCase {
         app.buttons["Match System"].tap()
     }
 
-    func testSearchLayoutAndBookmarks() {
+    func testSearchAndLayout() {
         open()
-        app.buttons["Search"].tap()
+        // Off-center, so the whole circle must be tappable, not just the glyph.
+        app.buttons["Search"].coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.8)).tap()
         sleep(1)
         app.typeText("Conclusion\n")
         sleep(1)
         snap("search")
         app.buttons["Done"].firstMatch.tap()
         sleep(1)
-
-        app.buttons["Add Bookmark"].tap()
-        XCTAssert(app.buttons["Remove Bookmark"].waitForExistence(timeout: 2))
 
         app.buttons["More"].tap()
         app.buttons["Layout"].tap()
@@ -95,12 +93,6 @@ final class NightPdfUITests: XCTestCase {
         sleep(1)
         snap("paged")
         XCTAssert(app.buttons["Page 2 of 9"].exists)
-
-        app.buttons["Contents"].tap()
-        app.buttons["Bookmarks"].tap()
-        XCTAssert(app.staticTexts["Page 1"].waitForExistence(timeout: 2))
-        snap("bookmarks")
-        app.buttons["Done"].tap()
 
         app.buttons["More"].tap()
         app.buttons["Layout"].tap()

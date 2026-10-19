@@ -106,6 +106,8 @@ private struct DocumentReader: View {
     }
 
     /// Floating glass controls. DocumentGroup's viewer doesn't show `.bottomBar` items.
+    /// Plain buttons only hit-test their drawn content, so each label sets a
+    /// content shape; otherwise taps beside the glyph fall through to the page.
     private var bottomBar: some View {
         GlassEffectContainer(spacing: 12) {
             HStack(spacing: 12) {
@@ -114,6 +116,7 @@ private struct DocumentReader: View {
                 } label: {
                     Image(systemName: "list.bullet")
                         .frame(width: 48, height: 48)
+                        .contentShape(.circle)
                 }
                 .glassEffect(.regular.interactive(), in: .circle)
                 .accessibilityLabel("Contents")
@@ -128,6 +131,7 @@ private struct DocumentReader: View {
                         .monospacedDigit()
                         .padding(.horizontal, 18)
                         .frame(height: 48)
+                        .contentShape(.capsule)
                 }
                 .glassEffect(.regular.interactive(), in: .capsule)
                 .accessibilityLabel("Page \(model.currentPageIndex + 1) of \(model.pageCount)")
@@ -135,26 +139,15 @@ private struct DocumentReader: View {
 
                 Spacer(minLength: 0)
 
-                HStack(spacing: 0) {
-                    Button {
-                        model.toggleBookmark()
-                    } label: {
-                        Image(systemName: model.isCurrentPageBookmarked ? "bookmark.fill" : "bookmark")
-                            .contentTransition(.symbolEffect(.replace))
-                            .frame(width: 48, height: 48)
-                    }
-                    .accessibilityLabel(model.isCurrentPageBookmarked ? "Remove Bookmark" : "Add Bookmark")
-
-                    Button {
-                        model.showFind()
-                    } label: {
-                        Image(systemName: "magnifyingglass")
-                            .frame(width: 48, height: 48)
-                    }
-                    .accessibilityLabel("Search")
+                Button {
+                    model.showFind()
+                } label: {
+                    Image(systemName: "magnifyingglass")
+                        .frame(width: 48, height: 48)
+                        .contentShape(.circle)
                 }
-                .padding(.horizontal, 2)
-                .glassEffect(.regular.interactive(), in: .capsule)
+                .glassEffect(.regular.interactive(), in: .circle)
+                .accessibilityLabel("Search")
             }
         }
         .buttonStyle(.plain)

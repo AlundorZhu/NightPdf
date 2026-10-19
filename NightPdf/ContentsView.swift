@@ -14,7 +14,6 @@ struct ContentsView: View {
     enum Tab: String, CaseIterable, Identifiable {
         case outline = "Contents"
         case pages = "Pages"
-        case bookmarks = "Bookmarks"
 
         var id: Self { self }
     }
@@ -49,7 +48,6 @@ struct ContentsView: View {
             switch selectedTab.wrappedValue {
             case .outline: outline
             case .pages: PagesGrid(model: model, select: select)
-            case .bookmarks: bookmarks
             }
         }
         .frame(maxHeight: .infinity, alignment: .top)
@@ -84,41 +82,6 @@ struct ContentsView: View {
                     }
                 }
                 .disabled(node.destination == nil)
-            }
-            .listStyle(.plain)
-        }
-    }
-
-    @ViewBuilder
-    private var bookmarks: some View {
-        if model.bookmarks.isEmpty {
-            ContentUnavailableView(
-                "No Bookmarks",
-                systemImage: "bookmark",
-                description: Text("Tap \(Image(systemName: "bookmark")) while reading to bookmark a page.")
-            )
-        } else {
-            List {
-                ForEach(model.bookmarks.sorted(), id: \.self) { index in
-                    Button {
-                        select(index)
-                    } label: {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Page \(index + 1)")
-                                .foregroundStyle(.primary)
-                            if let snippet = model.snippet(forPage: index) {
-                                Text(snippet)
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-                            }
-                        }
-                    }
-                }
-                .onDelete { offsets in
-                    let sorted = model.bookmarks.sorted()
-                    offsets.forEach { model.removeBookmark(sorted[$0]) }
-                }
             }
             .listStyle(.plain)
         }

@@ -22,4 +22,4 @@ cp TestAssets/edge-cases.pdf "$DOCS/Edge Cases.pdf"
 
 [[ -n "$SHOTS" ]] && mkdir -p "$SHOTS" && export TEST_RUNNER_NIGHTPDF_SCREENSHOTS="$(cd "$SHOTS" && pwd)"
 xcodebuild -project NightPdf.xcodeproj -scheme NightPdf -destination "id=$UDID" \
-    -derivedDataPath "$DERIVED" test-without-building
+    -derivedDataPath "$DERIVED" test-without-building ${ONLY:+-only-testing:$ONLY}

@@ -5,3 +5,4 @@ TestAssets/*.aux
 TestAssets/*.log
 TestAssets/*.out
 TestAssets/*.toc
+.DS_Store

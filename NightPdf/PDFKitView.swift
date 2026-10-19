@@ -141,7 +141,11 @@ struct PDFKitView: UIViewRepresentable {
         }
 
         @objc private func tapped(_ gesture: UITapGestureRecognizer) {
-            guard let view = gesture.view as? PDFView, !isLink(at: gesture.location(in: view), in: view) else { return }
+            // While searching, a tap just dismisses the keyboard; hiding the bars
+            // too would leave no Search button once the find bar closes.
+            guard !model.isSearching,
+                  let view = gesture.view as? PDFView, !isLink(at: gesture.location(in: view), in: view)
+            else { return }
             withAnimation(.easeInOut(duration: 0.2)) {
                 model.isChromeHidden.toggle()
             }

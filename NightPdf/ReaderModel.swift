@@ -69,7 +69,6 @@ final class ReaderModel {
     private(set) var pageCount = 0
     private(set) var currentPageIndex = 0
     private(set) var returnStack: [ReturnPoint] = []
-    private(set) var bookmarks: Set<Int> = []
     private(set) var outline: [OutlineNode] = []
     private(set) var invertsPages = false
     var isChromeHidden = false
@@ -84,7 +83,6 @@ final class ReaderModel {
         guard let document else { return }
         pageCount = document.pageCount
         outline = Self.outlineNodes(of: document.outlineRoot, in: document)
-        bookmarks = Set(defaults.array(forKey: key("bookmarks")) as? [Int] ?? [])
         currentPageIndex = min(defaults.integer(forKey: key("lastPage")), max(pageCount - 1, 0))
     }
 
@@ -187,28 +185,6 @@ final class ReaderModel {
         suppressHistory = false
     }
 
-    // MARK: - Bookmarks
-
-    var isCurrentPageBookmarked: Bool { bookmarks.contains(currentPageIndex) }
-
-    func toggleBookmark() {
-        if bookmarks.contains(currentPageIndex) {
-            bookmarks.remove(currentPageIndex)
-        } else {
-            bookmarks.insert(currentPageIndex)
-        }
-        saveBookmarks()
-    }
-
-    func removeBookmark(_ index: Int) {
-        bookmarks.remove(index)
-        saveBookmarks()
-    }
-
-    private func saveBookmarks() {
-        defaults.set(bookmarks.sorted(), forKey: key("bookmarks"))
-    }
-
     // MARK: - Search, printing
 
     func showFind() {
@@ -256,14 +232,6 @@ final class ReaderModel {
             cg.scaleBy(x: scale, y: -scale)
             page.draw(with: .cropBox, to: cg)
         }
-    }
-
-    func snippet(forPage index: Int) -> String? {
-        document?.page(at: index)?.string?
-            .split(whereSeparator: \.isNewline)
-            .lazy
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .first { $0.count > 3 }
     }
 
     private var defaults: UserDefaults { .standard }
