@@ -74,16 +74,43 @@ final class NightPdfUITests: XCTestCase {
         app.buttons["Match System"].tap()
     }
 
-    func testSearchAndLayout() {
+    func testSearch() {
         open()
         // Off-center, so the whole circle must be tappable, not just the glyph.
         app.buttons["Search"].coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.8)).tap()
         sleep(1)
-        app.typeText("Conclusion\n")
+        XCTAssertEqual(app.keyboards.count, 1, "search starts with the keyboard up")
+        app.typeText("conclusion")
+        snap("search-typing")
+        app.typeText("\n")
         sleep(1)
-        snap("search")
+        snap("search-results")
+        XCTAssertEqual(app.keyboards.count, 0, "Return puts the keyboard away")
+        let count = app.staticTexts.matching(NSPredicate(format: "label MATCHES '1 of [0-9]+'")).firstMatch
+        XCTAssert(count.waitForExistence(timeout: 3))
+
+        app.buttons["Next Match"].tap()
+        XCTAssert(app.staticTexts.matching(NSPredicate(format: "label MATCHES '2 of [0-9]+'")).firstMatch.exists)
+        sleep(1)
+        snap("search-next")
+
+        app.buttons["All Results"].tap()
+        XCTAssert(app.staticTexts["Page 7"].waitForExistence(timeout: 3))
+        snap("search-list")
+        app.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'conclusion'")).element(boundBy: 0).tap()
+        sleep(1)
+        XCTAssert(app.staticTexts.matching(NSPredicate(format: "label MATCHES '1 of [0-9]+'")).firstMatch.exists)
+
+        // Tapping the field brings the keyboard back to refine the search.
+        app.textFields["Search"].tap()
+        XCTAssertEqual(app.keyboards.count, 1)
         app.buttons["Done"].firstMatch.tap()
         sleep(1)
+        XCTAssert(app.buttons["Search"].exists, "Done brings the bottom bar back")
+    }
+
+    func testLayout() {
+        open()
 
         app.buttons["More"].tap()
         app.buttons["Layout"].tap()

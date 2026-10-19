@@ -14,14 +14,14 @@ struct ReaderView: View {
     var body: some View {
         Group {
             if let model {
-                if model.document == nil {
+                if let search = model.search {
+                    DocumentReader(model: model, search: search)
+                } else {
                     ContentUnavailableView(
                         "Can’t Open PDF",
                         systemImage: "exclamationmark.triangle",
                         description: Text("The file may be damaged, password protected, or not a valid PDF.")
                     )
-                } else {
-                    DocumentReader(model: model)
                 }
             } else {
                 Color.clear
@@ -37,6 +37,7 @@ struct ReaderView: View {
 
 private struct DocumentReader: View {
     let model: ReaderModel
+    @Bindable var search: DocumentSearch
 
     @AppStorage("pageAppearance") private var appearance = PageAppearance.automatic
     @AppStorage("pageLayout") private var layout = PageLayout.continuous
@@ -45,6 +46,8 @@ private struct DocumentReader: View {
     @State private var showingContents = false
     @State private var showingGoToPage = false
     @State private var pageText = ""
+    @State private var showingResults = false
+    @FocusState private var searchFieldFocused: Bool
 
     private var invertsPages: Bool {
         switch appearance {
@@ -59,7 +62,10 @@ private struct DocumentReader: View {
             PDFKitView(model: model, layout: layout, invertsPages: invertsPages, hidesBars: model.isChromeHidden)
                 .ignoresSafeArea()
 
-            if !model.isChromeHidden && !model.isSearching {
+            if search.isActive {
+                searchBar
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            } else if !model.isChromeHidden {
                 bottomBar
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
@@ -67,6 +73,9 @@ private struct DocumentReader: View {
         .toolbar { toolbar }
         .sheet(isPresented: $showingContents) {
             ContentsView(model: model)
+        }
+        .sheet(isPresented: $showingResults) {
+            SearchResultsView(search: search)
         }
         .alert("Go to Page", isPresented: $showingGoToPage) {
             TextField("Page", text: $pageText)
@@ -141,7 +150,7 @@ private struct DocumentReader: View {
                 Spacer(minLength: 0)
 
                 Button {
-                    model.showFind()
+                    withAnimation(.snappy) { search.begin() }
                 } label: {
                     Image(systemName: "magnifyingglass")
                         .frame(width: 48, height: 48)
@@ -149,6 +158,7 @@ private struct DocumentReader: View {
                 }
                 .glassEffect(.regular.interactive(), in: .circle)
                 .accessibilityLabel("Search")
+                .keyboardShortcut("f")
             }
         }
         .buttonStyle(.plain)
@@ -157,6 +167,117 @@ private struct DocumentReader: View {
         .foregroundStyle(.primary)
         .padding(.horizontal, 20)
         .padding(.bottom, 4)
+    }
+
+    /// Replaces the bottom bar while searching. Return searches and puts the
+    /// keyboard away so the matches can be read; tap the field to refine.
+    private var searchBar: some View {
+        GlassEffectContainer(spacing: 10) {
+            HStack(spacing: 10) {
+                Button {
+                    searchFieldFocused = false
+                    withAnimation(.snappy) { search.end() }
+                } label: {
+                    Image(systemName: "checkmark")
+                        .frame(width: 48, height: 48)
+                        .contentShape(.circle)
+                }
+                .glassEffect(.regular.interactive(), in: .circle)
+                .accessibilityLabel("Done")
+                .keyboardShortcut(.cancelAction)
+
+                searchField
+
+                HStack(spacing: 0) {
+                    Button(action: search.previous) {
+                        Image(systemName: "chevron.up")
+                            .frame(width: 40, height: 48)
+                            .contentShape(.rect)
+                    }
+                    .accessibilityLabel("Previous Match")
+                    .keyboardShortcut("g", modifiers: [.command, .shift])
+
+                    Button(action: search.next) {
+                        Image(systemName: "chevron.down")
+                            .frame(width: 40, height: 48)
+                            .contentShape(.rect)
+                    }
+                    .accessibilityLabel("Next Match")
+                    .keyboardShortcut("g")
+                }
+                .padding(.horizontal, 2)
+                .glassEffect(.regular.interactive(), in: .capsule)
+                .disabled(search.results.isEmpty)
+
+                Button {
+                    searchFieldFocused = false
+                    showingResults = true
+                } label: {
+                    Image(systemName: "list.bullet")
+                        .frame(width: 48, height: 48)
+                        .contentShape(.circle)
+                }
+                .glassEffect(.regular.interactive(), in: .circle)
+                .accessibilityLabel("All Results")
+                .disabled(search.results.isEmpty)
+            }
+        }
+        .buttonStyle(.plain)
+        .font(.body.weight(.medium))
+        .foregroundStyle(.primary)
+        .padding(.horizontal, 16)
+        .padding(.bottom, 4)
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 6) {
+            TextField("Search", text: $search.query)
+                .focused($searchFieldFocused)
+                .submitLabel(.search)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+                .onSubmit {
+                    search.submit()
+                    searchFieldFocused = false
+                }
+                .onAppear { searchFieldFocused = true }
+            if !searchFieldFocused {
+                searchStatus
+            } else if !search.query.isEmpty {
+                Button {
+                    search.query = ""
+                    searchFieldFocused = true
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .accessibilityLabel("Clear Search")
+            }
+        }
+        .font(.body)
+        .padding(.horizontal, 14)
+        .frame(height: 48)
+        .glassEffect(.regular.interactive(), in: .capsule)
+    }
+
+    @ViewBuilder
+    private var searchStatus: some View {
+        let isCurrent = search.query.trimmingCharacters(in: .whitespacesAndNewlines) == search.searchedQuery
+        if isCurrent && search.isFinding && search.results.isEmpty {
+            ProgressView()
+        } else if isCurrent && !search.searchedQuery.isEmpty {
+            Group {
+                if let index = search.currentIndex {
+                    Text("\(index + 1) of \(search.results.count)\(search.isFinding ? "+" : "")")
+                } else if !search.isFinding {
+                    Text("None")
+                }
+            }
+            .font(.subheadline.monospacedDigit())
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .fixedSize()
+        }
     }
 
     private var moreMenu: some View {

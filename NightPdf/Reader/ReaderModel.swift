@@ -23,6 +23,7 @@ struct OutlineNode: Identifiable {
 @Observable
 final class ReaderModel {
     let document: NightDocument?
+    let search: DocumentSearch?
     let fileURL: URL?
     private let data: Data
 
@@ -36,7 +37,6 @@ final class ReaderModel {
     private(set) var outline: [OutlineNode] = []
     private(set) var invertsPages = false
     var isChromeHidden = false
-    private(set) var isSearching = false
 
     init(data: Data, fileURL: URL?) {
         self.data = data
@@ -46,7 +46,11 @@ final class ReaderModel {
             NightDocument(data: data)
         }.flatMap { $0.isLocked ? nil : $0 }
         self.document = document
+        search = document.map { DocumentSearch(document: $0, data: data) }
         guard let document else { return }
+        search?.reveal = { [weak self] selection in
+            self?.withoutHistory { self?.pdfView?.reveal(selection) }
+        }
         pageCount = document.pageCount
         outline = Signposts.signposter.withIntervalSignpost("Build Outline") {
             Self.outlineNodes(of: document.outlineRoot)
@@ -56,6 +60,7 @@ final class ReaderModel {
 
     func attach(_ view: NightPDFView) {
         pdfView = view
+        search?.pdfView = view
         let start = currentPageIndex
         guard start > 0 else { return }
         // Wait for the first layout pass, otherwise PDFView ignores the jump.
@@ -153,25 +158,7 @@ final class ReaderModel {
         suppressHistory = false
     }
 
-    // MARK: - Search, printing
-
-    func showFind() {
-        guard let interaction = pdfView?.findInteraction else { return }
-        isChromeHidden = false
-        isSearching = true
-        interaction.presentFindNavigator(showingReplace: false)
-
-        // PDFView owns the find delegate, so watch for the navigator closing.
-        Timer.scheduledTimer(withTimeInterval: 0.3, repeats: true) { [weak self, weak interaction] timer in
-            MainActor.assumeIsolated {
-                guard let self else { return timer.invalidate() }
-                if interaction?.isFindNavigatorVisible != true {
-                    timer.invalidate()
-                    withAnimation { self.isSearching = false }
-                }
-            }
-        }
-    }
+    // MARK: - Printing
 
     func printDocument() {
         let controller = UIPrintInteractionController.shared

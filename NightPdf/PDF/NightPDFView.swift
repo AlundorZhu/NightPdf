@@ -9,6 +9,7 @@ import PDFKit
 /// before they happen, so the reader can offer a way back.
 final class NightPDFView: PDFView {
     var willJump: ((PDFDestination) -> Void)?
+    let highlighter = MatchHighlighter()
 
     /// Space left between the navigation bar and a jump target.
     private static let jumpMargin: CGFloat = 12
@@ -33,6 +34,34 @@ final class NightPDFView: PDFView {
         var offset = scrollView.contentOffset
         offset.y = min(max(offset.y + target.y - (topInset + Self.jumpMargin), -insets.top), maxY)
         scrollView.setContentOffset(offset, animated: false)
+    }
+
+    /// Scrolls a search match into the upper part of the screen, clear of the
+    /// search bar and keyboard. Leaves it alone if it's already there.
+    func reveal(_ selection: PDFSelection) {
+        guard let page = selection.pages.first else { return }
+        guard let scrollView, displayMode == .singlePageContinuous || displayMode == .twoUpContinuous else {
+            go(to: page)   // paged layouts show one page (or spread) at a time
+            return
+        }
+        layoutIfNeeded()
+        let match = convert(selection.bounds(for: page), from: page)
+        let top = topInset + Self.jumpMargin
+        let clear = top...(bounds.height * 0.45)   // the keyboard and bar cover the rest
+        let fitsHorizontally = match.minX >= bounds.minX && match.maxX <= bounds.maxX
+        if clear.contains(match.minY) && clear.contains(match.maxY) && fitsHorizontally { return }
+
+        let insets = scrollView.adjustedContentInset
+        var offset = scrollView.contentOffset
+        offset.y += match.midY - (top + (clear.upperBound - top) * 0.4)
+        offset.y = min(max(offset.y, -insets.top),
+                       max(scrollView.contentSize.height - scrollView.bounds.height + insets.bottom, -insets.top))
+        if !fitsHorizontally {
+            offset.x += match.midX - bounds.midX
+            offset.x = min(max(offset.x, -insets.left),
+                           max(scrollView.contentSize.width - scrollView.bounds.width + insets.right, -insets.left))
+        }
+        scrollView.setContentOffset(offset, animated: true)
     }
 
     /// The point at the top-left of the area not covered by the navigation bar.

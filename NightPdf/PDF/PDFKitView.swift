@@ -17,7 +17,7 @@ struct PDFKitView: UIViewRepresentable {
         view.backgroundColor = UIColor { traits in
             traits.userInterfaceStyle == .dark ? .black : .secondarySystemBackground
         }
-        view.isFindInteractionEnabled = true
+        view.pageOverlayViewProvider = view.highlighter
         view.pageBreakMargins = UIEdgeInsets(top: 6, left: 0, bottom: 6, right: 0)
 
         model.attach(view)
@@ -65,11 +65,12 @@ struct PDFKitView: UIViewRepresentable {
         }
 
         @objc private func tapped(_ gesture: UITapGestureRecognizer) {
-            // While searching, a tap just dismisses the keyboard; hiding the bars
-            // too would leave no Search button once the find bar closes.
-            guard !model.isSearching,
-                  let view = gesture.view as? PDFView, !isLink(at: gesture.location(in: view), in: view)
-            else { return }
+            // While searching, a tap just puts the keyboard away so the page can be read.
+            if model.search?.isActive == true {
+                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                return
+            }
+            guard let view = gesture.view as? PDFView, !isLink(at: gesture.location(in: view), in: view) else { return }
             withAnimation(.easeInOut(duration: 0.2)) {
                 model.isChromeHidden.toggle()
             }

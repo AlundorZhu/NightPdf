@@ -72,6 +72,20 @@ final class PerformanceTests: XCTestCase {
         }
     }
 
+    /// "night" matches about 90,000 times.
+    func testSearchLargeDocument() {
+        app.launch()
+        open("Large")
+        measure(metrics: [signpost("Search")]) {
+            tap(x: 0.89, y: 0.929)   // Search, which starts with an empty field
+            sleep(1)
+            type(["n", "i", "g", "h", "t", "search"])
+            sleep(12)
+            tap(x: 0.1, y: 0.929)   // Done
+            sleep(1)
+        }
+    }
+
     // MARK: - Helpers
 
     private func signpost(_ name: String) -> XCTOSSignpostMetric {
@@ -102,6 +116,20 @@ final class PerformanceTests: XCTestCase {
         showBrowser(containing: name)
         app.cells["\(name), pdf"].tap()
         sleep(4)
+    }
+
+    /// Taps keys on the English keyboard by position; `typeText` would query the UI.
+    private func type(_ keys: [String]) {
+        let positions: [String: (Double, Double)] = [
+            "t": (0.452, 0.700), "i": (0.746, 0.700),
+            "g": (0.498, 0.763), "h": (0.598, 0.763),
+            "n": (0.696, 0.824),
+            "search": (0.870, 0.885),
+        ]
+        for key in keys {
+            let (x, y) = positions[key]!
+            tap(x: x, y: y)
+        }
     }
 
     private func tap(x: Double, y: Double) {

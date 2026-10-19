@@ -11,6 +11,7 @@ import os
 ///   Within it, "Load Document" (parsing) and "Build Outline".
 /// - "Show Contents": from tapping Contents until the sheet appears.
 /// - "Render Thumbnail": one page in the Pages grid.
+/// - "Search": from submitting a search until PDFKit has searched every page.
 ///
 /// `begin`/`end` are for intervals that start and finish in different places;
 /// the rest use `signposter.withIntervalSignpost` directly.
