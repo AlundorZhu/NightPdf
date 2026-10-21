@@ -25,11 +25,13 @@ final class ReaderModel {
     let document: NightDocument?
     let search: DocumentSearch?
     let fileURL: URL?
+    let knocks = KnockDetector()
     private let data: Data
 
     @ObservationIgnored weak var pdfView: NightPDFView?
     @ObservationIgnored private var suppressHistory = false
     @ObservationIgnored private var appliedLayout: PageLayout?
+    @ObservationIgnored private var screenLockRelease: Task<Void, Never>?
 
     private(set) var pageCount = 0
     private(set) var currentPageIndex = 0
@@ -48,6 +50,10 @@ final class ReaderModel {
         self.document = document
         search = document.map { DocumentSearch(document: $0, data: data) }
         guard let document else { return }
+        knocks.onKnock = { [weak self] knock in
+            self?.keepScreenAwake()
+            self?.step(forward: knock == .double)
+        }
         search?.reveal = { [weak self] selection in
             self?.withoutHistory { self?.pdfView?.reveal(selection) }
         }
@@ -152,10 +158,43 @@ final class ReaderModel {
         returnStack.removeAll()
     }
 
+    /// Scrolls about a screenful, or turns the page. Not a jump, so it isn't
+    /// added to the return history.
+    func step(forward: Bool) {
+        if pdfView == nil { DebugLog.scroll("step skipped: no PDF view") }
+        withoutHistory { pdfView?.step(forward: forward) }
+    }
+
     private func withoutHistory(_ action: () -> Void) {
         suppressHistory = true
         action()
         suppressHistory = false
+    }
+
+    // MARK: - Knock to scroll
+
+    func listenForKnocks(_ listens: Bool) {
+        DebugLog.knock("listen \(listens), enabled \(knocks.isEnabled)")
+        if listens { knocks.start() } else { knocks.stop() }
+        if listens && knocks.isEnabled { keepScreenAwake() } else { allowScreenLock() }
+    }
+
+    /// Reading hands-free means nobody touches the screen, so keep it from
+    /// locking until a while after the last knock.
+    private func keepScreenAwake() {
+        UIApplication.shared.isIdleTimerDisabled = true
+        screenLockRelease?.cancel()
+        screenLockRelease = Task {
+            try? await Task.sleep(for: .seconds(300))
+            guard !Task.isCancelled else { return }
+            UIApplication.shared.isIdleTimerDisabled = false
+        }
+    }
+
+    private func allowScreenLock() {
+        screenLockRelease?.cancel()
+        screenLockRelease = nil
+        UIApplication.shared.isIdleTimerDisabled = false
     }
 
     // MARK: - Printing

@@ -42,11 +42,13 @@ private struct DocumentReader: View {
     @AppStorage("pageAppearance") private var appearance = PageAppearance.automatic
     @AppStorage("pageLayout") private var layout = PageLayout.continuous
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.horizontalSizeClass) private var sizeClass
 
     @State private var showingContents = false
     @State private var showingGoToPage = false
     @State private var pageText = ""
     @State private var showingResults = false
+    @State private var showingKnockSettings = false
     @FocusState private var searchFieldFocused: Bool
 
     private var invertsPages: Bool {
@@ -77,6 +79,14 @@ private struct DocumentReader: View {
         .sheet(isPresented: $showingResults) {
             SearchResultsView(search: search)
         }
+        .sheet(isPresented: $showingKnockSettings) {
+            KnockSettingsView(knocks: model.knocks, isRegularWidth: sizeClass == .regular)
+        }
+        // The settings listen too, so the meter works before knocking is turned on.
+        .onChange(of: [model.knocks.isEnabled, showingKnockSettings], initial: true) {
+            model.listenForKnocks(model.knocks.isEnabled || showingKnockSettings)
+        }
+        .onDisappear { model.listenForKnocks(false) }
         .alert("Go to Page", isPresented: $showingGoToPage) {
             TextField("Page", text: $pageText)
                 .keyboardType(.numberPad)
@@ -305,6 +315,13 @@ private struct DocumentReader: View {
                     Label("Page Color", systemImage: "circle.lefthalf.filled")
                 }
                 .pickerStyle(.menu)
+
+                Button {
+                    showingKnockSettings = true
+                } label: {
+                    Label("Knock to Scroll…", systemImage: "hand.tap")
+                    Text(model.knocks.isEnabled ? "On" : "Off")
+                }
             }
 
             Section {

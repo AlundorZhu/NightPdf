@@ -4,15 +4,23 @@
 //
 
 import PDFKit
+import UIKit.UIGestureRecognizerSubclass
 
 /// PDFView that reports destination jumps (link taps, outline, go to page)
 /// before they happen, so the reader can offer a way back.
 final class NightPDFView: PDFView {
     var willJump: ((PDFDestination) -> Void)?
+    /// Called when a finger goes down anywhere in the window (true) and when
+    /// the last one lifts (false).
+    var touchChanged: ((Bool) -> Void)?
     let highlighter = MatchHighlighter()
+    private let touchObserver = TouchObserver()
 
     /// Space left between the navigation bar and a jump target.
     private static let jumpMargin: CGFloat = 12
+    /// How much of the visible height one step scrolls, leaving a few lines
+    /// of overlap to read on from.
+    private static let stepFraction: CGFloat = 0.8
 
     override func go(to destination: PDFDestination) {
         willJump?(destination)
@@ -64,6 +72,39 @@ final class NightPDFView: PDFView {
         scrollView.setContentOffset(offset, animated: true)
     }
 
+    /// Moves about a screenful forward or back: scrolls the continuous layouts,
+    /// turns the page in the paged one.
+    func step(forward: Bool) {
+        guard let scrollView, displayMode == .singlePageContinuous || displayMode == .twoUpContinuous else {
+            DebugLog.scroll("""
+                step \(forward ? "forward" : "back") by page: mode \(displayMode.rawValue), \
+                scroll view \(scrollView != nil), can go \(forward ? canGoToNextPage : canGoToPreviousPage)
+                """)
+            if forward { goToNextPage(nil) } else { goToPreviousPage(nil) }
+            return
+        }
+        let insets = scrollView.adjustedContentInset
+        let visible = scrollView.bounds.height - insets.top - insets.bottom
+        var offset = scrollView.contentOffset
+        offset.y += (forward ? 1 : -1) * visible * Self.stepFraction
+        offset.y = min(max(offset.y, -insets.top),
+                       max(scrollView.contentSize.height - scrollView.bounds.height + insets.bottom, -insets.top))
+        DebugLog.scroll("""
+            step \(forward ? "forward" : "back"): offset \(Int(scrollView.contentOffset.y)) → \(Int(offset.y)) \
+            of \(Int(scrollView.contentSize.height)), visible \(Int(visible)), \
+            \(offset.y == scrollView.contentOffset.y ? "already at the end" : "scrolling")
+            """)
+        scrollView.setContentOffset(offset, animated: true)
+    }
+
+    // Touches anywhere in the window, including the SwiftUI bars and sheets.
+    override func willMove(toWindow newWindow: UIWindow?) {
+        super.willMove(toWindow: newWindow)
+        window?.removeGestureRecognizer(touchObserver)
+        touchObserver.touchChanged = { [weak self] isDown in self?.touchChanged?(isDown) }
+        newWindow?.addGestureRecognizer(touchObserver)
+    }
+
     /// The point at the top-left of the area not covered by the navigation bar.
     /// (`currentDestination` doesn't track the visible top reliably.)
     var visibleDestination: PDFDestination? {
@@ -107,5 +148,38 @@ final class NightPDFView: PDFView {
         }
         invalidate(self)
         layoutDocumentView()
+    }
+}
+
+/// Reports touches without taking part in gesture handling.
+private final class TouchObserver: UIGestureRecognizer {
+    var touchChanged: ((Bool) -> Void)?
+
+    init() {
+        super.init(target: nil, action: nil)
+        cancelsTouchesInView = false
+        delaysTouchesEnded = false
+    }
+
+    override func canPrevent(_ other: UIGestureRecognizer) -> Bool { false }
+    override func canBePrevented(by other: UIGestureRecognizer) -> Bool { false }
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+        touchChanged?(true)
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
+        finishIfLifted(event)
+    }
+
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) {
+        finishIfLifted(event)
+    }
+
+    private func finishIfLifted(_ event: UIEvent) {
+        let lifted = event.allTouches?.allSatisfy { $0.phase == .ended || $0.phase == .cancelled } ?? true
+        guard lifted else { return }
+        touchChanged?(false)
+        state = .failed   // resets to .possible for the next touch
     }
 }

@@ -126,6 +126,71 @@ final class NightPdfUITests: XCTestCase {
         app.buttons["Vertical Scrolling"].tap()
     }
 
+    /// The simulator has no accelerometer, so this drives the scroll a knock
+    /// triggers through the sheet's Try It buttons.
+    func testKnockScrolling() {
+        open()
+        app.buttons["More"].tap()
+        app.buttons["Knock to Scroll…"].tap()
+        XCTAssert(app.switches["Knock to Scroll"].waitForExistence(timeout: 3))
+        snap("knock-settings")
+        knockSheetShowsTryIt()
+
+        for _ in 1...3 {
+            app.buttons["Double Knock"].tap()
+            sleep(1)
+        }
+        snap("knock-forward")
+        app.buttons["Done"].tap()
+        sleep(1)
+        let forward = currentPage()
+        XCTAssertGreaterThan(forward, 1, "knocks scroll forward")
+        XCTAssertFalse(app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Back to page'")).firstMatch.exists,
+                       "scrolling isn't a jump to return from")
+
+        app.buttons["More"].tap()
+        app.buttons["Knock to Scroll…"].tap()
+        knockSheetShowsTryIt()
+        app.buttons["Triple Knock"].tap()
+        sleep(1)
+        app.buttons["Done"].tap()
+        sleep(1)
+        XCTAssertLessThan(currentPage(), forward, "a triple knock scrolls back")
+
+        app.buttons["More"].tap()
+        app.buttons["Layout"].tap()
+        app.buttons["Page by Page"].tap()
+        sleep(1)
+        let paged = currentPage()
+        app.buttons["More"].tap()
+        app.buttons["Knock to Scroll…"].tap()
+        knockSheetShowsTryIt()
+        app.buttons["Double Knock"].tap()
+        sleep(1)
+        snap("knock-paged")
+        app.buttons["Done"].tap()
+        sleep(1)
+        XCTAssertEqual(currentPage(), paged + 1, "a knock turns the page")
+
+        app.buttons["More"].tap()
+        app.buttons["Layout"].tap()
+        app.buttons["Vertical Scrolling"].tap()
+    }
+
+    /// The Try It section sits below the half-height sheet's fold.
+    private func knockSheetShowsTryIt() {
+        let button = app.buttons["Triple Knock"]   // the last row
+        XCTAssert(app.switches["Knock to Scroll"].waitForExistence(timeout: 3))
+        for _ in 0..<4 where !button.isHittable {
+            app.collectionViews.firstMatch.swipeUp()
+        }
+    }
+
+    private func currentPage() -> Int {
+        let label = app.buttons.matching(NSPredicate(format: "label MATCHES 'Page [0-9]+ of [0-9]+'")).firstMatch.label
+        return Int(label.split(separator: " ")[1]) ?? 0
+    }
+
     /// Rotated and cropped pages; screenshots show whether dark mode covers them fully.
     func testRotatedAndCroppedPages() {
         open("Edge Cases")

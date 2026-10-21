@@ -27,6 +27,7 @@ struct PDFKitView: UIViewRepresentable {
         view.autoScales = true
 
         view.willJump = { [weak model] destination in model?.willJump(to: destination) }
+        view.touchChanged = { [weak model] isDown in model?.knocks.touchChanged(isDown: isDown) }
         context.coordinator.observe(view)
         return view
     }
