@@ -86,11 +86,11 @@ final class NightPdfUITests: XCTestCase {
         sleep(1)
         snap("search-results")
         XCTAssertEqual(app.keyboards.count, 0, "Return puts the keyboard away")
-        let count = app.staticTexts.matching(NSPredicate(format: "label MATCHES '1 of [0-9]+'")).firstMatch
+        let count = app.staticTexts.matching(NSPredicate(format: "label MATCHES 'Match 1 of [0-9]+'")).firstMatch
         XCTAssert(count.waitForExistence(timeout: 3))
 
         app.buttons["Next Match"].tap()
-        XCTAssert(app.staticTexts.matching(NSPredicate(format: "label MATCHES '2 of [0-9]+'")).firstMatch.exists)
+        XCTAssert(app.staticTexts.matching(NSPredicate(format: "label MATCHES 'Match 2 of [0-9]+'")).firstMatch.exists)
         sleep(1)
         snap("search-next")
 
@@ -99,7 +99,7 @@ final class NightPdfUITests: XCTestCase {
         snap("search-list")
         app.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'conclusion'")).element(boundBy: 0).tap()
         sleep(1)
-        XCTAssert(app.staticTexts.matching(NSPredicate(format: "label MATCHES '1 of [0-9]+'")).firstMatch.exists)
+        XCTAssert(app.staticTexts.matching(NSPredicate(format: "label MATCHES 'Match 1 of [0-9]+'")).firstMatch.exists)
 
         // Tapping the field brings the keyboard back to refine the search.
         app.textFields["Search"].tap()

@@ -11,6 +11,8 @@ struct PDFKitView: UIViewRepresentable {
     let layout: PageLayout
     let invertsPages: Bool
     let hidesBars: Bool
+    /// See `NightPDFView.bottomObscuredHeight`.
+    let bottomObscuredHeight: CGFloat
 
     func makeUIView(context: Context) -> NightPDFView {
         let view = NightPDFView()
@@ -28,6 +30,7 @@ struct PDFKitView: UIViewRepresentable {
 
         view.willJump = { [weak model] destination in model?.willJump(to: destination) }
         view.touchChanged = { [weak model] isDown in model?.knocks.touchChanged(isDown: isDown) }
+        view.sceneActivityChanged = { [weak model] isActive in model?.sceneActivityChanged(isActive) }
         context.coordinator.observe(view)
         return view
     }
@@ -35,6 +38,7 @@ struct PDFKitView: UIViewRepresentable {
     func updateUIView(_ view: NightPDFView, context: Context) {
         model.apply(layout: layout)
         model.apply(invertsPages: invertsPages)
+        view.bottomObscuredHeight = bottomObscuredHeight
         // DocumentGroup's navigation controller ignores SwiftUI's toolbar visibility.
         if let navigation = view.navigationController, navigation.isNavigationBarHidden != hidesBars {
             navigation.setNavigationBarHidden(hidesBars, animated: true)

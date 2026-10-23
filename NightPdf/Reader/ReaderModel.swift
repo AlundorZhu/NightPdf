@@ -13,7 +13,7 @@ struct ReturnPoint {
     let pageIndex: Int
 }
 
-struct OutlineNode: Identifiable {
+nonisolated struct OutlineNode: Identifiable {
     let id: Int
     let title: String
     let destination: PDFDestination?
@@ -25,35 +25,46 @@ final class ReaderModel {
     let document: NightDocument?
     let search: DocumentSearch?
     let fileURL: URL?
-    let knocks = KnockDetector()
+    let knocks = KnockDetector.shared
     private let data: Data
 
     @ObservationIgnored weak var pdfView: NightPDFView?
     @ObservationIgnored private var suppressHistory = false
     @ObservationIgnored private var appliedLayout: PageLayout?
-    @ObservationIgnored private var screenLockRelease: Task<Void, Never>?
+    /// Where on the restored page to scroll to when the PDF view attaches.
+    @ObservationIgnored private var restorePoint: CGPoint?
+    /// Until the restore jump runs, the view shows the first page, which mustn't
+    /// be saved over the position being restored.
+    @ObservationIgnored private var isRestoring = false
+    @ObservationIgnored private var positionSave: Task<Void, Never>?
+    /// Rendered page thumbnails, by page and size. Costs are pixel counts.
+    @ObservationIgnored private let thumbnails: NSCache<NSString, UIImage> = {
+        let cache = NSCache<NSString, UIImage>()
+        cache.totalCostLimit = 12_000_000   // about 48 MB
+        return cache
+    }()
 
     private(set) var pageCount = 0
     private(set) var currentPageIndex = 0
     private(set) var returnStack: [ReturnPoint] = []
     private(set) var outline: [OutlineNode] = []
+    /// Each outline entry's page, by entry id; nil until resolved in the background.
+    private(set) var outlinePageIndices: [OutlineNode.ID: Int]?
     private(set) var invertsPages = false
     var isChromeHidden = false
+    /// Whether the reader's window is in the foreground and active.
+    private(set) var isSceneActive = true
 
     init(data: Data, fileURL: URL?) {
         self.data = data
         self.fileURL = fileURL
-        // Password-protected files aren't supported; they show as unopenable.
+        // Password-protected and empty files aren't supported; they show as unopenable.
         let document = Signposts.signposter.withIntervalSignpost("Load Document") {
             NightDocument(data: data)
-        }.flatMap { $0.isLocked ? nil : $0 }
+        }.flatMap { $0.isLocked || $0.pageCount == 0 ? nil : $0 }
         self.document = document
         search = document.map { DocumentSearch(document: $0, data: data) }
         guard let document else { return }
-        knocks.onKnock = { [weak self] knock in
-            self?.keepScreenAwake()
-            self?.step(forward: knock == .double)
-        }
         search?.reveal = { [weak self] selection in
             self?.withoutHistory { self?.pdfView?.reveal(selection) }
         }
@@ -61,18 +72,38 @@ final class ReaderModel {
         outline = Signposts.signposter.withIntervalSignpost("Build Outline") {
             Self.outlineNodes(of: document.outlineRoot)
         }
-        currentPageIndex = min(defaults.integer(forKey: key("lastPage")), max(pageCount - 1, 0))
+        if !outline.isEmpty {
+            Task { [weak self, data] in
+                let indices = await Self.outlinePageIndices(data: data)
+                self?.outlinePageIndices = indices
+            }
+        }
+        if let position = ReadingPositions.position(for: positionKey) {
+            currentPageIndex = min(max(position.pageIndex, 0), pageCount - 1)
+            restorePoint = position.pageIndex == currentPageIndex ? position.point : nil
+        }
     }
 
     func attach(_ view: NightPDFView) {
         pdfView = view
         search?.pdfView = view
+        // A new view starts from PDFKit's defaults, whatever was applied to an earlier one.
+        appliedLayout = nil
+        view.pageShadowsEnabled = !invertsPages
         let start = currentPageIndex
-        guard start > 0 else { return }
+        let point = restorePoint
+        restorePoint = nil
+        guard start > 0 || point != nil else { return }
+        isRestoring = true
         // Wait for the first layout pass, otherwise PDFView ignores the jump.
         DispatchQueue.main.async { [weak self] in
-            guard let self, let page = self.document?.page(at: start) else { return }
-            self.withoutHistory { view.go(to: page) }
+            guard let self else { return }
+            isRestoring = false
+            guard let page = document?.page(at: start) else { return }
+            let top = page.bounds(for: .cropBox)
+            // Through `go(to:)`, which keeps the spot clear of the navigation bar.
+            let destination = PDFDestination(page: page, at: point ?? CGPoint(x: top.minX, y: top.maxY))
+            self.withoutHistory { view.go(to: destination) }
         }
     }
 
@@ -112,6 +143,7 @@ final class ReaderModel {
         guard let document, inverts != invertsPages else { return }
         document.invertsPages = inverts
         invertsPages = inverts
+        thumbnails.removeAllObjects()
         guard let view = pdfView else { return }
         view.pageShadowsEnabled = !inverts
         view.redrawPages()
@@ -122,7 +154,31 @@ final class ReaderModel {
     func pageDidChange() {
         guard let view = pdfView, let page = view.currentPage, let document else { return }
         currentPageIndex = document.index(for: page)
-        defaults.set(currentPageIndex, forKey: key("lastPage"))
+        // Pages change many times a second in a fast scroll; save once it settles.
+        positionSave?.cancel()
+        positionSave = Task {
+            try? await Task.sleep(for: .seconds(1))
+            guard !Task.isCancelled else { return }
+            savePosition()
+        }
+    }
+
+    func sceneActivityChanged(_ isActive: Bool) {
+        isSceneActive = isActive
+        if !isActive { savePosition() }
+    }
+
+    /// Remembers the spot at the top of the screen, to reopen the file there.
+    /// Also called when the window goes to the background or closes.
+    func savePosition() {
+        positionSave?.cancel()
+        positionSave = nil
+        guard let document, !isRestoring else { return }
+        var position = ReadingPositions.Position(pageIndex: currentPageIndex, point: nil)
+        if let destination = pdfView?.visibleDestination, let page = destination.page {
+            position = .init(pageIndex: document.index(for: page), point: destination.point)
+        }
+        ReadingPositions.save(position, for: positionKey)
     }
 
     /// Called by the PDF view before every destination jump, including link taps.
@@ -173,28 +229,17 @@ final class ReaderModel {
 
     // MARK: - Knock to scroll
 
+    /// Every window's reader listens while it's active; knocks go to the one
+    /// in the key window.
     func listenForKnocks(_ listens: Bool) {
         DebugLog.knock("listen \(listens), enabled \(knocks.isEnabled)")
-        if listens { knocks.start() } else { knocks.stop() }
-        if listens && knocks.isEnabled { keepScreenAwake() } else { allowScreenLock() }
-    }
-
-    /// Reading hands-free means nobody touches the screen, so keep it from
-    /// locking until a while after the last knock.
-    private func keepScreenAwake() {
-        UIApplication.shared.isIdleTimerDisabled = true
-        screenLockRelease?.cancel()
-        screenLockRelease = Task {
-            try? await Task.sleep(for: .seconds(300))
-            guard !Task.isCancelled else { return }
-            UIApplication.shared.isIdleTimerDisabled = false
+        if listens {
+            knocks.addListener(self, isKey: { [weak self] in self?.pdfView?.window?.isKeyWindow == true }) {
+                [weak self] knock in self?.step(forward: knock == .double)
+            }
+        } else {
+            knocks.removeListener(self)
         }
-    }
-
-    private func allowScreenLock() {
-        screenLockRelease?.cancel()
-        screenLockRelease = nil
-        UIApplication.shared.isIdleTimerDisabled = false
     }
 
     // MARK: - Printing
@@ -210,9 +255,19 @@ final class ReaderModel {
 
     // MARK: - Helpers
 
+    /// Kept, so reopening the page grid or scrolling back doesn't render again.
     func thumbnail(forPage index: Int, fitting size: CGSize) async -> UIImage? {
+        let key = "\(index) \(Int(size.width))x\(Int(size.height))" as NSString
+        if let image = thumbnails.object(forKey: key) { return image }
         guard let page = document?.page(at: index) as? NightPage else { return nil }
-        return await Self.renderThumbnail(of: page, fitting: size)
+        let inverts = invertsPages
+        guard let image = await Self.renderThumbnail(of: page, fitting: size) else { return nil }
+        // Don't keep one drawn in the old colors.
+        if inverts == invertsPages {
+            let pixels = image.size.width * image.size.height * image.scale * image.scale
+            thumbnails.setObject(image, forKey: key, cost: Int(pixels))
+        }
+        return image
     }
 
     /// Off the main thread, so scrolling the page grid doesn't stall on rendering.
@@ -223,24 +278,47 @@ final class ReaderModel {
     }
 
     func pageIndex(of node: OutlineNode) -> Int? {
-        guard let document, let page = node.destination?.page else { return nil }
-        return document.index(for: page)
+        outlinePageIndices?[node.id]
     }
 
-    private var defaults: UserDefaults { .standard }
-
-    private func key(_ name: String) -> String {
-        "\(name):\(fileURL?.path(percentEncoded: false) ?? "untitled")"
+    /// The section the reader is in: the last entry, in reading order, that
+    /// starts at or before the current page, with the entries above it.
+    /// Empty until the outline's pages are resolved.
+    func currentOutlinePath() -> [OutlineNode] {
+        var path: [OutlineNode] = []
+        var found: [OutlineNode] = []
+        func visit(_ nodes: [OutlineNode]) -> Bool {
+            for node in nodes {
+                if let index = pageIndex(of: node) {
+                    if index > currentPageIndex { return false }
+                    found = path + [node]
+                }
+                path.append(node)
+                defer { path.removeLast() }
+                if !visit(node.children ?? []) { return false }
+            }
+            return true
+        }
+        _ = visit(outline)
+        return found
     }
 
-    /// Resolving a destination's page is slow (~0.1 ms each), so that waits
-    /// until a row asks for it in `pageIndex(of:)`.
-    private static func outlineNodes(of item: PDFOutline?) -> [OutlineNode] {
+    private var positionKey: String {
+        fileURL?.path(percentEncoded: false) ?? "untitled"
+    }
+
+    /// Resolving a destination's page is slow (~0.1 ms each, so seconds for a
+    /// textbook's outline), so it's left to `outlinePageIndices(data:)`.
+    /// `visit` sees each entry's id and destination as it's built.
+    private nonisolated static func outlineNodes(
+        of item: PDFOutline?, visit: (OutlineNode.ID, PDFDestination?) -> Void = { _, _ in }
+    ) -> [OutlineNode] {
         var nextID = 0
         func build(_ item: PDFOutline) -> [OutlineNode] {
             (0..<item.numberOfChildren).compactMap { item.child(at: $0) }.map { child in
                 nextID += 1
                 let destination = child.destination ?? (child.action as? PDFActionGoTo)?.destination
+                visit(nextID, destination)
                 let children = build(child)
                 return OutlineNode(
                     id: nextID,
@@ -251,5 +329,66 @@ final class ReaderModel {
             }
         }
         return item.map(build) ?? []
+    }
+
+    /// Every outline entry's page, resolved off the main thread on a private
+    /// copy of the document (PDFKit documents aren't safe to share across
+    /// threads). Built by the same walk as `outline`, so the ids match.
+    @concurrent
+    private nonisolated static func outlinePageIndices(data: Data) async -> [OutlineNode.ID: Int] {
+        Signposts.signposter.withIntervalSignpost("Resolve Outline Pages") {
+            guard let copy = PDFDocument(data: data) else { return [:] }
+            var indices: [OutlineNode.ID: Int] = [:]
+            _ = outlineNodes(of: copy.outlineRoot) { id, destination in
+                if let page = destination?.page {
+                    indices[id] = copy.index(for: page)
+                }
+            }
+            return indices
+        }
+    }
+}
+
+/// Where each file was left, all under one key with the least recently read
+/// dropped, so opening many files doesn't grow the defaults without end.
+enum ReadingPositions {
+    struct Position {
+        let pageIndex: Int
+        /// In page space; nil when only the page is known.
+        let point: CGPoint?
+    }
+
+    private static let key = "readingPositions"
+    static let limit = 200
+    /// Replaced by the unit tests.
+    static var defaults = UserDefaults.standard
+
+    static func position(for path: String) -> Position? {
+        if let entry = defaults.dictionary(forKey: key)?[path] as? [String: Double], let page = entry["page"] {
+            let point = entry["x"].flatMap { x in entry["y"].map { CGPoint(x: x, y: $0) } }
+            return Position(pageIndex: Int(page), point: point)
+        }
+        // Before, each file had a key of its own.
+        let legacyKey = "lastPage:\(path)"
+        guard defaults.object(forKey: legacyKey) != nil else { return nil }
+        let position = Position(pageIndex: defaults.integer(forKey: legacyKey), point: nil)
+        defaults.removeObject(forKey: legacyKey)
+        save(position, for: path)
+        return position
+    }
+
+    static func save(_ position: Position, for path: String) {
+        var positions = defaults.dictionary(forKey: key) as? [String: [String: Double]] ?? [:]
+        var entry = ["page": Double(position.pageIndex), "time": Date.now.timeIntervalSinceReferenceDate]
+        if let point = position.point {
+            entry["x"] = point.x
+            entry["y"] = point.y
+        }
+        positions[path] = entry
+        if positions.count > limit,
+           let oldest = positions.min(by: { $0.value["time"] ?? 0 < $1.value["time"] ?? 0 })?.key {
+            positions[oldest] = nil
+        }
+        defaults.set(positions, forKey: key)
     }
 }

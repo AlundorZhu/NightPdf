@@ -9,6 +9,7 @@ import os
 ///
 /// - "Open Document": from reading the file until the first page is drawn.
 ///   Within it, "Load Document" (parsing) and "Build Outline".
+/// - "Resolve Outline Pages": finding each outline entry's page, in the background.
 /// - "Show Contents": from tapping Contents until the sheet appears.
 /// - "Render Thumbnail": one page in the Pages grid.
 /// - "Search": from submitting a search until PDFKit has searched every page.

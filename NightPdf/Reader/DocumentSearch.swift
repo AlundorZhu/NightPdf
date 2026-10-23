@@ -14,6 +14,50 @@ struct SearchResult: Identifiable, Sendable {
     let range: NSRange
     /// Match bounds in page space, one per line it spans.
     let lineRects: [CGRect]
+    /// For the results list; made by the search, which has the page's text at hand.
+    let snippet: SearchSnippet
+}
+
+/// A match with some text on either side, whitespace collapsed.
+nonisolated struct SearchSnippet: Equatable, Sendable {
+    let head: String
+    let match: String
+    let tail: String
+
+    /// Cut around the match's own range, so the right occurrence is the bold one.
+    init(range: NSRange, in text: NSString) {
+        let before = 40, after = 60
+        guard NSMaxRange(range) <= text.length else {
+            head = ""; match = ""; tail = ""
+            return
+        }
+        let start = max(range.location - before, 0)
+        let end = min(NSMaxRange(range) + after, text.length)
+        func part(_ location: Int, _ length: Int) -> String {
+            text.substring(with: NSRange(location: location, length: length))
+                .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+        }
+        var head = part(start, range.location - start)
+        var tail = part(NSMaxRange(range), end - NSMaxRange(range))
+
+        // Cutting by characters splits words; drop the partial ones, unless
+        // the text was already cut short by the start or end of the page.
+        if start == 0 {
+            while head.hasPrefix(" ") { head.removeFirst() }
+        } else if let space = head.firstIndex(of: " ") {
+            head = "…" + head[head.index(after: space)...]
+        } else {
+            head = "…" + head
+        }
+        if end == text.length {
+            while tail.hasSuffix(" ") { tail.removeLast() }
+        } else if let space = tail.lastIndex(of: " ") {
+            tail = tail[..<space] + "…"
+        }
+        self.head = head
+        self.match = part(range.location, range.length)
+        self.tail = tail
+    }
 }
 
 /// Find in document. Pages are searched off the main thread, in parallel on
@@ -29,19 +73,42 @@ final class DocumentSearch {
     private(set) var results: [SearchResult] = []
     private(set) var currentIndex: Int?
     private(set) var isFinding = false
+    /// The search stopped at `maxResults`; there are more matches.
+    private(set) var isCapped = false
+
+    /// A one-letter query can match hundreds of thousands of times, and each
+    /// match holds a selection and draws a highlight.
+    nonisolated static let maxResults = 5_000
 
     @ObservationIgnored weak var pdfView: NightPDFView?
     /// Scrolls to a match; set by the reader so jumps skip the back history.
     @ObservationIgnored var reveal: ((PDFSelection) -> Void)?
     @ObservationIgnored private let document: PDFDocument
     @ObservationIgnored private let data: Data
-    @ObservationIgnored private var copies: SearchCopies?
+    /// Parsing the copies takes a while for a large file, so it runs off the
+    /// main thread; a second search before it's done waits for the same task.
+    @ObservationIgnored private var copies: Task<SearchCopies, Never>?
     @ObservationIgnored private var startPage = 0
     @ObservationIgnored private var findTask: Task<Void, Never>?
+    /// Batches already buffered by a cancelled search can still arrive; this
+    /// tells them apart from the current search's.
+    @ObservationIgnored private var generation = 0
+    @ObservationIgnored nonisolated(unsafe) private var memoryWarningObserver: NSObjectProtocol?
 
     init(document: PDFDocument, data: Data) {
         self.document = document
         self.data = data
+        memoryWarningObserver = NotificationCenter.default.addObserver(
+            forName: UIApplication.didReceiveMemoryWarningNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.copies = nil }
+        }
+    }
+
+    deinit {
+        if let memoryWarningObserver {
+            NotificationCenter.default.removeObserver(memoryWarningObserver)
+        }
     }
 
     func begin() {
@@ -52,6 +119,7 @@ final class DocumentSearch {
         clearResults()
         isActive = false
         query = ""
+        copies = nil   // the next search parses them again, off the main thread
     }
 
     /// Return in the search field: a new query searches, the same one moves on.
@@ -66,7 +134,12 @@ final class DocumentSearch {
 
     func next() {
         guard !results.isEmpty else { return }
-        select((currentIndex.map { $0 + 1 } ?? 0) % results.count)
+        if let currentIndex {
+            select((currentIndex + 1) % results.count)
+        } else {
+            // Like the first match selected: from where the reader is.
+            select(results.firstIndex { $0.pageIndex >= startPage } ?? 0)
+        }
     }
 
     func previous() {
@@ -85,33 +158,9 @@ final class DocumentSearch {
 
     /// The match with some text on either side, for the results list.
     func snippet(for result: SearchResult) -> AttributedString {
-        let before = 40, after = 60
-        guard let context = selection(for: result) else { return AttributedString() }
-        context.extend(atStart: before)
-        context.extend(atEnd: after)
-        var text = (context.string ?? "")
-            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespaces)
-
-        // Extending by characters cuts words in half; drop the partial ones,
-        // unless the text was already cut short by the start or end of the page.
-        let options: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive]
-        if let match = text.range(of: searchedQuery, options: options),
-           text.distance(from: match.upperBound, to: text.endIndex) >= after - 5,
-           let space = text[match.upperBound...].lastIndex(of: " ") {
-            text = text[..<space] + "…"
-        }
-        if let match = text.range(of: searchedQuery, options: options),
-           text.distance(from: text.startIndex, to: match.lowerBound) >= before - 5,
-           let space = text[..<match.lowerBound].firstIndex(of: " ") {
-            text = "…" + text[text.index(after: space)...]
-        }
-
-        var snippet = AttributedString(text)
-        if let range = snippet.range(of: searchedQuery, options: options) {
-            snippet[range].inlinePresentationIntent = .stronglyEmphasized
-        }
-        return snippet
+        var emphasized = AttributedString(result.snippet.match)
+        emphasized.inlinePresentationIntent = .stronglyEmphasized
+        return AttributedString(result.snippet.head) + emphasized + AttributedString(result.snippet.tail)
     }
 
     private func selection(for result: SearchResult) -> PDFSelection? {
@@ -124,14 +173,17 @@ final class DocumentSearch {
         guard !text.isEmpty else { return }
         startPage = pdfView?.currentPage.map { document.index(for: $0) } ?? 0
         isFinding = true
+        let generation = generation
         let interval = Signposts.signposter.beginInterval("Search")
-        let copies = copies ?? SearchCopies(data: data)
+        let copies = copies ?? Task.detached(priority: .userInitiated) { [data] in SearchCopies(data: data) }
         self.copies = copies
         findTask = Task {
-            for await batch in Self.matches(of: text, in: copies) {
-                add(batch)
+            for await batch in Self.matches(of: text, in: await copies.value) {
+                guard !Task.isCancelled, generation == self.generation else { break }
+                add(batch.results)
+                if batch.isCapped { isCapped = true }
             }
-            guard !Task.isCancelled else {
+            guard !Task.isCancelled, generation == self.generation else {
                 Signposts.signposter.endInterval("Search", interval, "cancelled")
                 return
             }
@@ -140,23 +192,33 @@ final class DocumentSearch {
             if currentIndex == nil && !results.isEmpty {
                 select(0)
             }
+            let found = results.isEmpty ? "No matches" : results.count == 1 ? "1 match" : "\(countText) matches"
+            AccessibilityNotification.Announcement(found).post()
         }
+    }
+
+    /// The number of matches, with a "+" when the search stopped at the cap.
+    var countText: String {
+        "\(results.count.formatted())\(isCapped ? "+" : "")"
     }
 
     private func clearResults() {
         findTask?.cancel()
         findTask = nil
+        generation += 1
         searchedQuery = ""
         results = []
         currentIndex = nil
         isFinding = false
+        isCapped = false
         pdfView?.highlighter.removeAll()
     }
 
     private func add(_ batch: [SearchResult]) {
         let first = results.count
         let numbered = batch.enumerated().map { offset, result in
-            SearchResult(id: first + offset, pageIndex: result.pageIndex, range: result.range, lineRects: result.lineRects)
+            SearchResult(id: first + offset, pageIndex: result.pageIndex, range: result.range,
+                         lineRects: result.lineRects, snippet: result.snippet)
         }
         results.append(contentsOf: numbered)
         pdfView?.highlighter.add(numbered.map { ($0.pageIndex, $0.lineRects) })
@@ -168,30 +230,38 @@ final class DocumentSearch {
 
     /// Searches the pages in parallel and yields matches in page order, about
     /// ten times a second, so the UI updates in steps rather than once per page.
-    private nonisolated static func matches(of query: String, in copies: SearchCopies) -> AsyncStream<[SearchResult]> {
+    /// Stops once `limit` are in; the last batch says whether it did.
+    nonisolated static func matches(
+        of query: String, in copies: SearchCopies, limit: Int = maxResults
+    ) -> AsyncStream<(results: [SearchResult], isCapped: Bool)> {
         AsyncStream { continuation in
             let task = Task.detached(priority: .userInitiated) {
                 let workers = copies.documents.count
                 let pageCount = copies.documents.first?.pageCount ?? 0
                 // Pages finish out of order; hold them until the ones before are in.
                 let collected = OSAllocatedUnfairLock(initialState: (
-                    next: 0, done: [Int: [SearchResult]](), batch: [SearchResult](), lastYield: ContinuousClock.now))
+                    next: 0, done: [Int: [SearchResult]](), batch: [SearchResult](), lastYield: ContinuousClock.now,
+                    total: 0, isCapped: false))
 
                 await withTaskGroup(of: Void.self) { group in
                     for worker in 0..<workers {
                         group.addTask {
                             let document = copies.documents[worker]
                             for pageIndex in stride(from: worker, to: pageCount, by: workers) {
-                                if Task.isCancelled { return }
-                                let found = matches(of: query, onPage: pageIndex, in: document)
+                                if Task.isCancelled || collected.withLock({ $0.isCapped }) { return }
+                                // One more than fits, to tell a full set from a cut-off one.
+                                let found = matches(of: query, onPage: pageIndex, in: document, limit: limit + 1)
                                 collected.withLock { state in
                                     state.done[pageIndex] = found
-                                    while let ready = state.done.removeValue(forKey: state.next) {
-                                        state.batch += ready
+                                    while !state.isCapped, let ready = state.done.removeValue(forKey: state.next) {
+                                        let room = limit - state.total
+                                        state.batch += ready.prefix(room)
+                                        state.total += min(ready.count, room)
+                                        state.isCapped = ready.count > room
                                         state.next += 1
                                     }
                                     if !state.batch.isEmpty && ContinuousClock.now - state.lastYield > .milliseconds(100) {
-                                        continuation.yield(state.batch)
+                                        continuation.yield((state.batch, false))
                                         state.batch = []
                                         state.lastYield = .now
                                     }
@@ -200,25 +270,27 @@ final class DocumentSearch {
                         }
                     }
                 }
-                let rest = collected.withLock { $0.batch }
-                if !rest.isEmpty { continuation.yield(rest) }
+                let (rest, isCapped) = collected.withLock { ($0.batch, $0.isCapped) }
+                if !rest.isEmpty || isCapped { continuation.yield((rest, isCapped)) }
                 continuation.finish()
             }
             continuation.onTermination = { _ in task.cancel() }
         }
     }
 
-    private nonisolated static func matches(of query: String, onPage pageIndex: Int, in document: PDFDocument) -> [SearchResult] {
+    private nonisolated static func matches(of query: String, onPage pageIndex: Int, in document: PDFDocument,
+                                            limit: Int) -> [SearchResult] {
         guard let page = document.page(at: pageIndex), let text = page.string as NSString? else { return [] }
         let options: NSString.CompareOptions = [.caseInsensitive, .diacriticInsensitive]
         var results: [SearchResult] = []
         var remaining = NSRange(location: 0, length: text.length)
-        while true {
+        while results.count < limit {
             let found = text.range(of: query, options: options, range: remaining)
             if found.location == NSNotFound { break }
             let lines = page.selection(for: found)?.selectionsByLine() ?? []
             results.append(SearchResult(id: 0, pageIndex: pageIndex, range: found,
-                                        lineRects: lines.map { $0.bounds(for: page) }))
+                                        lineRects: lines.map { $0.bounds(for: page) },
+                                        snippet: SearchSnippet(range: found, in: text)))
             remaining = NSRange(location: NSMaxRange(found), length: text.length - NSMaxRange(found))
         }
         return results
@@ -226,9 +298,10 @@ final class DocumentSearch {
 }
 
 /// Private copies of the document for searching off the main thread, one per
-/// worker: PDFKit documents aren't safe to share across threads. They're kept,
-/// so later searches reuse the page text PDFKit extracted for the first one.
-private nonisolated final class SearchCopies: @unchecked Sendable {
+/// worker: PDFKit documents aren't safe to share across threads. They're kept
+/// while search is open, so later searches reuse the page text PDFKit extracted
+/// for the first one, and let go when it closes or memory runs low.
+nonisolated final class SearchCopies: @unchecked Sendable {
     let documents: [PDFDocument]
 
     init(data: Data) {

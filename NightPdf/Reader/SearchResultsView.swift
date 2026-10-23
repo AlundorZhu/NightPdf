@@ -74,8 +74,7 @@ struct SearchResultsView: View {
     }
 
     private var title: String {
-        let count = search.results.count
-        let matches = count == 1 ? "1 match" : "\(count) matches"
+        let matches = search.results.count == 1 ? "1 match" : "\(search.countText) matches"
         return search.isFinding ? "\(matches) so far" : matches
     }
 }

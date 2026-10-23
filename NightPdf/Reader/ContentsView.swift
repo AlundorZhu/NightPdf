@@ -10,6 +10,8 @@ struct ContentsView: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var tab: Tab?
+    /// IDs of the current section and the entries above it.
+    @State private var currentPath: [Int] = []
 
     enum Tab: String, CaseIterable, Identifiable {
         case outline = "Contents"
@@ -64,27 +66,41 @@ struct ContentsView: View {
                 description: Text("This document doesn’t have a table of contents.")
             )
         } else {
-            List(model.outline, children: \.children) { node in
-                Button {
-                    if let destination = node.destination {
-                        model.go(to: destination)
-                        dismiss()
-                    }
-                } label: {
-                    HStack {
-                        Text(node.title)
-                            .foregroundStyle(.primary)
-                        Spacer()
-                        if let page = model.pageIndex(of: node) {
-                            Text("\(page + 1)")
-                                .monospacedDigit()
-                                .foregroundStyle(.secondary)
+            ScrollViewReader { proxy in
+                List(model.outline, children: \.children) { node in
+                    let isCurrent = node.id == currentPath.last
+                    Button {
+                        if let destination = node.destination {
+                            model.go(to: destination)
+                            dismiss()
+                        }
+                    } label: {
+                        HStack {
+                            Text(node.title)
+                                .foregroundStyle(currentPath.contains(node.id) ? Color.accentColor : .primary)
+                            Spacer()
+                            if let page = model.pageIndex(of: node) {
+                                Text("\(page + 1)")
+                                    .monospacedDigit()
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     }
+                    .disabled(node.destination == nil)
+                    .listRowBackground(isCurrent ? Color.accentColor.opacity(0.15) : nil)
+                    .accessibilityAddTraits(isCurrent ? .isSelected : [])
+                    .id(node.id)
                 }
-                .disabled(node.destination == nil)
+                .listStyle(.plain)
+                // Again once the outline's pages are resolved, if the sheet opened before.
+                .task(id: model.outlinePageIndices == nil) {
+                    currentPath = model.currentOutlinePath().map(\.id)
+                    // The top-level entry, which shows even when its children are collapsed.
+                    if let top = currentPath.first {
+                        proxy.scrollTo(top, anchor: .center)
+                    }
+                }
             }
-            .listStyle(.plain)
         }
     }
 
@@ -127,6 +143,20 @@ private struct PageThumbnail: View {
     let isCurrent: Bool
 
     @State private var image: UIImage?
+    @State private var width: CGFloat = 0
+
+    private struct RenderID: Equatable {
+        let size: CGSize?
+        let inverts: Bool
+    }
+
+    /// The cell's width, rounded up to one of a few sizes so cells a few
+    /// points apart share cached thumbnails.
+    private var renderSize: CGSize? {
+        guard width > 0 else { return nil }
+        let bucket: CGFloat = width <= 130 ? 130 : width <= 160 ? 160 : 240
+        return CGSize(width: bucket, height: bucket * 170 / 130)
+    }
 
     var body: some View {
         VStack(spacing: 6) {
@@ -152,8 +182,10 @@ private struct PageThumbnail: View {
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(isCurrent ? Color.accentColor : .secondary)
         }
-        .task(id: model.invertsPages) {
-            image = await model.thumbnail(forPage: index, fitting: CGSize(width: 130, height: 170))
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+        .task(id: RenderID(size: renderSize, inverts: model.invertsPages)) {
+            guard let renderSize else { return }
+            image = await model.thumbnail(forPage: index, fitting: renderSize)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Page \(index + 1)")

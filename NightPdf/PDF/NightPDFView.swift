@@ -13,7 +13,27 @@ final class NightPDFView: PDFView {
     /// Called when a finger goes down anywhere in the window (true) and when
     /// the last one lifts (false).
     var touchChanged: ((Bool) -> Void)?
+    /// Called when the window's scene becomes active (true) or stops being
+    /// active, e.g. in the background or app switcher. (SwiftUI's `scenePhase`
+    /// doesn't reach DocumentGroup's document view.)
+    var sceneActivityChanged: ((Bool) -> Void)?
+    private var sceneObservers: [NSObjectProtocol] = []
     let highlighter = MatchHighlighter()
+    /// Height of the floating bars over the bottom of the view, beyond the safe
+    /// area. The scrolling layouts leave room for it, so the end of the
+    /// document can scroll clear of the bars.
+    var bottomObscuredHeight: CGFloat = 0 {
+        didSet {
+            guard bottomObscuredHeight != oldValue, let scrollView else { return }
+            applyBottomInset()
+            // Past the end once the room is gone: settle back rather than jump on the next touch.
+            let insets = scrollView.adjustedContentInset
+            let maxY = max(scrollView.contentSize.height - scrollView.bounds.height + insets.bottom, -insets.top)
+            if scrollView.contentOffset.y > maxY {
+                scrollView.setContentOffset(CGPoint(x: scrollView.contentOffset.x, y: maxY), animated: true)
+            }
+        }
+    }
     private let touchObserver = TouchObserver()
 
     /// Space left between the navigation bar and a jump target.
@@ -97,12 +117,39 @@ final class NightPDFView: PDFView {
         scrollView.setContentOffset(offset, animated: true)
     }
 
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        applyBottomInset()   // the scroll view may be new, or PDFKit may have reset it
+    }
+
+    private func applyBottomInset() {
+        guard let scrollView else { return }
+        let isScrolling = displayMode == .singlePageContinuous || displayMode == .twoUpContinuous
+        let inset = isScrolling ? bottomObscuredHeight : 0
+        guard scrollView.contentInset.bottom != inset else { return }
+        scrollView.contentInset.bottom = inset
+        scrollView.verticalScrollIndicatorInsets.bottom = inset
+    }
+
     // Touches anywhere in the window, including the SwiftUI bars and sheets.
     override func willMove(toWindow newWindow: UIWindow?) {
         super.willMove(toWindow: newWindow)
         window?.removeGestureRecognizer(touchObserver)
         touchObserver.touchChanged = { [weak self] isDown in self?.touchChanged?(isDown) }
         newWindow?.addGestureRecognizer(touchObserver)
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        sceneObservers.forEach(NotificationCenter.default.removeObserver)
+        sceneObservers = []
+        guard let scene = window?.windowScene else { return }
+        sceneActivityChanged?(scene.activationState == .foregroundActive)
+        for (name, isActive) in [(UIScene.didActivateNotification, true), (UIScene.willDeactivateNotification, false)] {
+            sceneObservers.append(NotificationCenter.default.addObserver(forName: name, object: scene, queue: .main) {
+                [weak self] _ in MainActor.assumeIsolated { self?.sceneActivityChanged?(isActive) }
+            })
+        }
     }
 
     /// The point at the top-left of the area not covered by the navigation bar.
@@ -128,7 +175,10 @@ final class NightPDFView: PDFView {
         return nil
     }
 
+    /// PDFKit's scroll view, looked up again when the layout changes, since
+    /// switching to and from the page view controller swaps the views.
     private var scrollView: UIScrollView? {
+        if let cachedScrollView, cachedScrollView.isDescendant(of: self) { return cachedScrollView }
         func find(in view: UIView) -> UIScrollView? {
             for subview in view.subviews {
                 if let scrollView = subview as? UIScrollView { return scrollView }
@@ -136,7 +186,22 @@ final class NightPDFView: PDFView {
             }
             return nil
         }
-        return find(in: self)
+        cachedScrollView = find(in: self)
+        return cachedScrollView
+    }
+    private weak var cachedScrollView: UIScrollView?
+
+    override var displayMode: PDFDisplayMode {
+        didSet { cachedScrollView = nil }
+    }
+
+    override var document: PDFDocument? {
+        didSet { cachedScrollView = nil }
+    }
+
+    override func usePageViewController(_ enable: Bool, withViewOptions viewOptions: [AnyHashable: Any]? = nil) {
+        super.usePageViewController(enable, withViewOptions: viewOptions)
+        cachedScrollView = nil
     }
 
     /// Re-renders page tiles, e.g. after the page colors change.

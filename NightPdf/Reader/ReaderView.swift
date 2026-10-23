@@ -10,12 +10,16 @@ struct ReaderView: View {
     let fileURL: URL?
 
     @State private var model: ReaderModel?
+    /// Identifies the contents `model` was built from.
+    @State private var loadedContents: ContentsFingerprint?
 
     var body: some View {
         Group {
             if let model {
                 if let search = model.search {
                     DocumentReader(model: model, search: search)
+                        // A new document starts with fresh views and closed sheets.
+                        .id(ObjectIdentifier(model))
                 } else {
                     ContentUnavailableView(
                         "Can’t Open PDF",
@@ -27,11 +31,40 @@ struct ReaderView: View {
                 Color.clear
             }
         }
-        .onAppear {
-            if model == nil {
-                model = ReaderModel(data: data, fileURL: fileURL)
+        // DocumentGroup hands over new data when the file changes on disk
+        // (iCloud, another app saving); reopen it at the same place.
+        .onChange(of: ContentsFingerprint(data), initial: true) { _, contents in
+            guard contents != loadedContents else { return }
+            if let model {
+                model.listenForKnocks(false)
+                model.savePosition()
             }
+            loadedContents = contents
+            model = ReaderModel(data: data, fileURL: fileURL)
         }
+    }
+}
+
+/// A cheap stand-in for comparing file contents, which can be large: the size
+/// and the bytes at each end. A PDF that's rewritten or appended to changes
+/// at the end.
+private struct ContentsFingerprint: Equatable {
+    let count: Int
+    let head: Int
+    let tail: Int
+
+    init(_ data: Data) {
+        let length = 8192
+        count = data.count
+        head = Self.hash(data.prefix(length))
+        tail = Self.hash(data.suffix(length))
+    }
+
+    /// `Data`'s own hash only looks at its first few bytes.
+    private static func hash(_ data: Data) -> Int {
+        var hasher = Hasher()
+        data.withUnsafeBytes { hasher.combine(bytes: $0) }
+        return hasher.finalize()
     }
 }
 
@@ -49,6 +82,7 @@ private struct DocumentReader: View {
     @State private var pageText = ""
     @State private var showingResults = false
     @State private var showingKnockSettings = false
+    @State private var showsPageIndicator = false
     @FocusState private var searchFieldFocused: Bool
 
     private var invertsPages: Bool {
@@ -61,7 +95,8 @@ private struct DocumentReader: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            PDFKitView(model: model, layout: layout, invertsPages: invertsPages, hidesBars: model.isChromeHidden)
+            PDFKitView(model: model, layout: layout, invertsPages: invertsPages, hidesBars: model.isChromeHidden,
+                       bottomObscuredHeight: search.isActive || !model.isChromeHidden ? Self.barHeight : 0)
                 .ignoresSafeArea()
 
             if search.isActive {
@@ -70,9 +105,22 @@ private struct DocumentReader: View {
             } else if !model.isChromeHidden {
                 bottomBar
                     .transition(.move(edge: .bottom).combined(with: .opacity))
+            } else if showsPageIndicator {
+                pageIndicator
+                    .transition(.opacity)
             }
         }
         .toolbar { toolbar }
+        // (`.statusBarHidden` has no effect under DocumentGroup's navigation controller.)
+        .persistentSystemOverlays(model.isChromeHidden ? .hidden : .automatic)
+        // With the bars hidden, show the page number for a moment as it changes.
+        .task(id: model.currentPageIndex) {
+            guard model.isChromeHidden else { return }
+            withAnimation(.easeOut(duration: 0.2)) { showsPageIndicator = true }
+            try? await Task.sleep(for: .seconds(1.5))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeIn(duration: 0.4)) { showsPageIndicator = false }
+        }
         .sheet(isPresented: $showingContents) {
             ContentsView(model: model)
         }
@@ -83,14 +131,19 @@ private struct DocumentReader: View {
             KnockSettingsView(knocks: model.knocks, isRegularWidth: sizeClass == .regular)
         }
         // The settings listen too, so the meter works before knocking is turned on.
-        .onChange(of: [model.knocks.isEnabled, showingKnockSettings], initial: true) {
-            model.listenForKnocks(model.knocks.isEnabled || showingKnockSettings)
+        // In the background, or in a window that isn't showing, nothing listens.
+        .onChange(of: [model.knocks.isEnabled, showingKnockSettings, model.isSceneActive], initial: true) {
+            model.listenForKnocks(model.isSceneActive && (model.knocks.isEnabled || showingKnockSettings))
         }
-        .onDisappear { model.listenForKnocks(false) }
+        .onDisappear {
+            model.listenForKnocks(false)
+            model.savePosition()
+        }
         .alert("Go to Page", isPresented: $showingGoToPage) {
             TextField("Page", text: $pageText)
                 .keyboardType(.numberPad)
             Button("Go", action: goToEnteredPage)
+                .disabled(enteredPage == nil)
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("Enter a page number between 1 and \(model.pageCount).")
@@ -122,6 +175,36 @@ private struct DocumentReader: View {
         ToolbarItem(placement: .topBarTrailing) {
             moreMenu
         }
+    }
+
+    private func endSearch() {
+        guard search.isActive else { return }
+        searchFieldFocused = false
+        withAnimation(.snappy) { search.end() }
+    }
+
+    private func startSearch() {
+        withAnimation(.snappy) {
+            model.isChromeHidden = false
+            search.begin()
+        }
+        searchFieldFocused = true
+    }
+
+    /// The floating bars' height above the safe area.
+    private static let barHeight: CGFloat = 56
+
+    /// The page number while the bars are hidden. VoiceOver users can show
+    /// the bars instead.
+    private var pageIndicator: some View {
+        Text("\(model.currentPageIndex + 1) / \(model.pageCount)")
+            .font(.subheadline.monospacedDigit())
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .glassEffect(.regular, in: .capsule)
+            .padding(.bottom, 8)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 
     /// Floating glass controls. DocumentGroup's viewer doesn't show `.bottomBar` items.
@@ -159,9 +242,7 @@ private struct DocumentReader: View {
 
                 Spacer(minLength: 0)
 
-                Button {
-                    withAnimation(.snappy) { search.begin() }
-                } label: {
+                Button(action: startSearch) {
                     Image(systemName: "magnifyingglass")
                         .frame(width: 48, height: 48)
                         .contentShape(.circle)
@@ -184,10 +265,7 @@ private struct DocumentReader: View {
     private var searchBar: some View {
         GlassEffectContainer(spacing: 10) {
             HStack(spacing: 10) {
-                Button {
-                    searchFieldFocused = false
-                    withAnimation(.snappy) { search.end() }
-                } label: {
+                Button(action: endSearch) {
                     Image(systemName: "checkmark")
                         .frame(width: 48, height: 48)
                         .contentShape(.circle)
@@ -278,9 +356,12 @@ private struct DocumentReader: View {
         } else if isCurrent && !search.searchedQuery.isEmpty {
             Group {
                 if let index = search.currentIndex {
-                    Text("\(index + 1) of \(search.results.count)\(search.isFinding ? "+" : "")")
+                    let count = "\(search.countText)\(search.isFinding && !search.isCapped ? "+" : "")"
+                    Text("\(index + 1) of \(count)")
+                        .accessibilityLabel("Match \(index + 1) of \(count)")
                 } else if !search.isFinding {
                     Text("None")
+                        .accessibilityLabel("No matches")
                 }
             }
             .font(.subheadline.monospacedDigit())
@@ -292,7 +373,7 @@ private struct DocumentReader: View {
 
     private var moreMenu: some View {
         Menu("More", systemImage: "ellipsis") {
-            Button("Go to Page…", systemImage: "arrow.right.page.on.clipboard") {
+            Button("Go to Page…", systemImage: "number") {
                 pageText = ""
                 showingGoToPage = true
             }
@@ -335,8 +416,16 @@ private struct DocumentReader: View {
         }
     }
 
+    /// The entered page number, if it's one the document has.
+    private var enteredPage: Int? {
+        guard let number = Int(pageText.trimmingCharacters(in: .whitespaces)),
+              (1...model.pageCount).contains(number)
+        else { return nil }
+        return number
+    }
+
     private func goToEnteredPage() {
-        guard let number = Int(pageText.trimmingCharacters(in: .whitespaces)) else { return }
-        model.go(toPage: min(max(number, 1), model.pageCount) - 1)
+        guard let enteredPage else { return }
+        model.go(toPage: enteredPage - 1)
     }
 }

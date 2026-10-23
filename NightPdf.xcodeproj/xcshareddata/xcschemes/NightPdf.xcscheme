@@ -32,6 +32,16 @@
             skipped = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
+               BlueprintIdentifier = "8A21F616307C9A1C0007454A"
+               BuildableName = "NightPdfTests.xctest"
+               BlueprintName = "NightPdfTests"
+               ReferencedContainer = "container:NightPdf.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
                BlueprintIdentifier = "8A21F5F0307C9A1C0007454A"
                BuildableName = "NightPdfUITests.xctest"
                BlueprintName = "NightPdfUITests"

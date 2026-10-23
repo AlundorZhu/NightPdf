@@ -14,11 +14,19 @@
 			remoteGlobalIDString = 8A21F5C0307C9A1B0007454A;
 			remoteInfo = NightPdf;
 		};
+		8A21F610307C9A1C0007454A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 8A21F5B9307C9A1B0007454A /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 8A21F5C0307C9A1B0007454A;
+			remoteInfo = NightPdf;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		8A21F5C1307C9A1B0007454A /* NightPdf.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NightPdf.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		8A21F5F1307C9A1C0007454A /* NightPdfUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = NightPdfUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		8A21F611307C9A1C0007454A /* NightPdfTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = NightPdfTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -45,6 +53,11 @@
 			path = NightPdfUITests;
 			sourceTree = "<group>";
 		};
+		8A21F612307C9A1C0007454A /* NightPdfTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = NightPdfTests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -62,6 +75,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		8A21F613307C9A1C0007454A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -69,6 +89,7 @@
 			isa = PBXGroup;
 			children = (
 				8A21F5C3307C9A1B0007454A /* NightPdf */,
+				8A21F612307C9A1C0007454A /* NightPdfTests */,
 				8A21F5F2307C9A1C0007454A /* NightPdfUITests */,
 				8A21F5C2307C9A1B0007454A /* Products */,
 			);
@@ -79,6 +100,7 @@
 			children = (
 				8A21F5C1307C9A1B0007454A /* NightPdf.app */,
 				8A21F5F1307C9A1C0007454A /* NightPdfUITests.xctest */,
+				8A21F611307C9A1C0007454A /* NightPdfTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -131,6 +153,29 @@
 			productReference = 8A21F5F1307C9A1C0007454A /* NightPdfUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		8A21F616307C9A1C0007454A /* NightPdfTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8A21F620307C9A1C0007454A /* Build configuration list for PBXNativeTarget "NightPdfTests" */;
+			buildPhases = (
+				8A21F615307C9A1C0007454A /* Sources */,
+				8A21F613307C9A1C0007454A /* Frameworks */,
+				8A21F614307C9A1C0007454A /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				8A21F617307C9A1C0007454A /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				8A21F612307C9A1C0007454A /* NightPdfTests */,
+			);
+			name = NightPdfTests;
+			packageProductDependencies = (
+			);
+			productName = NightPdfTests;
+			productReference = 8A21F611307C9A1C0007454A /* NightPdfTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -145,6 +190,10 @@
 						CreatedOnToolsVersion = 26.6;
 					};
 					8A21F5F0307C9A1C0007454A = {
+						CreatedOnToolsVersion = 26.6;
+						TestTargetID = 8A21F5C0307C9A1B0007454A;
+					};
+					8A21F616307C9A1C0007454A = {
 						CreatedOnToolsVersion = 26.6;
 						TestTargetID = 8A21F5C0307C9A1B0007454A;
 					};
@@ -165,6 +214,7 @@
 			projectRoot = "";
 			targets = (
 				8A21F5C0307C9A1B0007454A /* NightPdf */,
+				8A21F616307C9A1C0007454A /* NightPdfTests */,
 				8A21F5F0307C9A1C0007454A /* NightPdfUITests */,
 			);
 		};
@@ -179,6 +229,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		8A21F5F5307C9A1C0007454A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8A21F614307C9A1C0007454A /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -202,6 +259,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		8A21F615307C9A1C0007454A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -209,6 +273,11 @@
 			isa = PBXTargetDependency;
 			target = 8A21F5C0307C9A1B0007454A /* NightPdf */;
 			targetProxy = 8A21F5F6307C9A1C0007454A /* PBXContainerItemProxy */;
+		};
+		8A21F617307C9A1C0007454A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 8A21F5C0307C9A1B0007454A /* NightPdf */;
+			targetProxy = 8A21F610307C9A1C0007454A /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -455,6 +524,52 @@
 			};
 			name = Release;
 		};
+		8A21F618307C9A1C0007454A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = CL66Q6N49J;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ucdavis.NightPdfTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/NightPdf.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/NightPdf";
+			};
+			name = Debug;
+		};
+		8A21F619307C9A1C0007454A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = CL66Q6N49J;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ucdavis.NightPdfTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/NightPdf.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/NightPdf";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -481,6 +596,15 @@
 			buildConfigurations = (
 				8A21F5F9307C9A1C0007454A /* Debug */,
 				8A21F5FA307C9A1C0007454A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		8A21F620307C9A1C0007454A /* Build configuration list for PBXNativeTarget "NightPdfTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8A21F618307C9A1C0007454A /* Debug */,
+				8A21F619307C9A1C0007454A /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
