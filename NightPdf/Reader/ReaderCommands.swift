@@ -4,6 +4,9 @@
 //
 
 import SwiftUI
+#if os(macOS)
+import AppKit
+#endif
 
 /// What the menu bar's commands do in the focused document window. The reader
 /// publishes it with `focusedSceneValue`, since its search and Go to Page
@@ -29,6 +32,20 @@ struct ReaderCommands: Commands {
     @AppStorage("pageLayout") private var layout = PageLayout.continuous
 
     var body: some Commands {
+        #if os(macOS)
+        // In place of Save, Duplicate, Rename, Move To and Revert, which share a
+        // group with Close. A viewer has nothing to save, and a duplicate is an
+        // unsaved document that asks to be saved on close.
+        CommandGroup(replacing: .saveItem) {
+            Button("Close") { NSApp.keyWindow?.performClose(nil) }
+                .keyboardShortcut("w")
+            Button("Close All") {
+                NSDocumentController.shared.closeAllDocuments(withDelegate: nil, didCloseAllSelector: nil, contextInfo: nil)
+            }
+            .keyboardShortcut("w", modifiers: [.command, .option])
+        }
+        #endif
+
         CommandGroup(replacing: .printItem) {
             Button("Print…") { actions?.print() }
                 .keyboardShortcut("p")
