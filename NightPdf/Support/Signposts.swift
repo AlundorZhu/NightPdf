@@ -17,7 +17,7 @@ import os
 /// `begin`/`end` are for intervals that start and finish in different places;
 /// the rest use `signposter.withIntervalSignpost` directly.
 nonisolated enum Signposts {
-    static let signposter = OSSignposter(subsystem: "ucdavis.NightPdf", category: "Performance")
+    static let signposter = OSSignposter(subsystem: "com.alundor.NightPdf", category: "Performance")
 
     private static let open = OSAllocatedUnfairLock<[String: OSSignpostIntervalState]>(initialState: [:])
 

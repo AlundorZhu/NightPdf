@@ -89,7 +89,7 @@ final class PerformanceTests: XCTestCase {
     // MARK: - Helpers
 
     private func signpost(_ name: String) -> XCTOSSignpostMetric {
-        XCTOSSignpostMetric(subsystem: "ucdavis.NightPdf", category: "Performance", name: name)
+        XCTOSSignpostMetric(subsystem: "com.alundor.NightPdf", category: "Performance", name: name)
     }
 
     private func measureOpening(_ name: String) {

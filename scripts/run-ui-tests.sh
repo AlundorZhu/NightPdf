@@ -20,7 +20,7 @@ xcrun simctl bootstatus "$UDID" -b >/dev/null
 xcodebuild -project NightPdf.xcodeproj -scheme NightPdf -testPlan AllTests -configuration "$CONFIG" -destination "id=$UDID" \
     -derivedDataPath "$DERIVED" build-for-testing -quiet
 xcrun simctl install "$UDID" "$DERIVED/Build/Products/$CONFIG-iphonesimulator/NightPdf.app"
-DOCS="$(xcrun simctl get_app_container "$UDID" ucdavis.NightPdf data)/Documents"
+DOCS="$(xcrun simctl get_app_container "$UDID" com.alundor.NightPdf data)/Documents"
 mkdir -p "$DOCS"
 cp TestAssets/sample.pdf "$DOCS/Sample Paper.pdf"
 cp TestAssets/edge-cases.pdf "$DOCS/Edge Cases.pdf"

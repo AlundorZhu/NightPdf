@@ -7,3 +7,9 @@ TestAssets/*.out
 TestAssets/*.toc
 .DS_Store
 TestAssets/large.pdf
+AppStore/showcase.pdf
+AppStore/*.aux
+AppStore/*.log
+AppStore/*.out
+AppStore/*.toc
+AppStore/screenshots/

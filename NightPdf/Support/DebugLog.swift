@@ -7,14 +7,14 @@ import Foundation
 import os
 
 /// Logging for debugging on a device, in Debug builds only. Messages show in
-/// Xcode's console, or in Console.app filtered to subsystem `ucdavis.NightPdf`.
+/// Xcode's console, or in Console.app filtered to subsystem `com.alundor.NightPdf`.
 ///
 /// In Release the functions are empty, and because messages are autoclosures
 /// they're never built, so neither the logging nor its text ends up in the app.
 nonisolated enum DebugLog {
     #if DEBUG
-    private static let knockLogger = Logger(subsystem: "ucdavis.NightPdf", category: "Knock")
-    private static let scrollLogger = Logger(subsystem: "ucdavis.NightPdf", category: "Scroll")
+    private static let knockLogger = Logger(subsystem: "com.alundor.NightPdf", category: "Knock")
+    private static let scrollLogger = Logger(subsystem: "com.alundor.NightPdf", category: "Scroll")
 
     static func knock(_ message: @autoclosure () -> String) {
         let text = message()
