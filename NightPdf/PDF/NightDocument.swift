@@ -30,7 +30,13 @@ final class NightPage: PDFPage, @unchecked Sendable {
 
         context.saveGState()
         // The clip can extend past the page into the gaps PDFView paints itself.
-        let area = context.boundingBoxOfClipPath.intersection(CGRect(origin: .zero, size: displaySize(for: box)))
+        // PDFView's white page fill covers whole device pixels, while the page
+        // size in points can end mid-pixel; snap outward so the last partial
+        // row at the top (and column at the right) is inverted too, otherwise
+        // a white hairline shows along the page edge at most zoom levels.
+        let pageRect = CGRect(origin: .zero, size: displaySize(for: box))
+        let snapped = context.convertToUserSpace(context.convertToDeviceSpace(pageRect).integral)
+        let area = context.boundingBoxOfClipPath.intersection(snapped)
         context.clip(to: area)
         context.setBlendMode(.difference)
         context.setFillColor(gray: Self.inkLevel, alpha: 1)
