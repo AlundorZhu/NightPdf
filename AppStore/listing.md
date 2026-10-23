@@ -69,7 +69,7 @@ Upload in this order (the first two appear in search results):
 
 - **iPhone 6.9"**: `AppStore/screenshots/iPhone 17 Pro Max/` → 1-night, 2-figure, 3-contents, 4-search, 5-pages
 - **iPad 13"**: `AppStore/screenshots/iPad Pro 13-inch (M5)/` → same order
-- **Mac**: `AppStore/screenshots/Mac/` (2880×1800)
+- **Mac**: `AppStore/screenshots/Mac/` (2880×1800) → 1-night, 2-figure, 3-search, 4-pages
 
 Regenerate the iPhone and iPad sets with `scripts/take-screenshots.sh`.
 
@@ -108,3 +108,49 @@ Regenerate the iPhone and iPad sets with `scripts/take-screenshots.sh`.
 ## Export compliance
 
 Already answered in the build (ITSAppUsesNonExemptEncryption = NO), so App Store Connect won't ask.
+
+## Mac version page (macOS App 1.0)
+
+Same keywords, support URL, and copyright as above. Use these in place of the iOS texts, which mention knocking and the Files app.
+
+**Promotional text [170]**
+
+> Dark pages that keep their colors, fast search, and a contents sidebar. Read papers and books at night without lighting up the room.
+
+**Description [4000]**
+
+> NightPdf is a PDF reader made for reading in the dark.
+>
+> Most dark modes leave the page bright, or invert it so figures turn strange colors. NightPdf darkens the page while keeping hues: text turns light on a soft dark gray, and a red line in a chart stays red. It's easier on your eyes, and the room around you stays dark.
+>
+> DARK PAGES THAT KEEP THEIR COLORS
+> • Choose Dark, Light, or Match System for the pages, separately from the app's appearance
+> • Charts, diagrams, and highlighted text keep their colors
+> • Works with rotated and cropped pages
+>
+> FIND YOUR WAY AROUND
+> • Search the whole document, step through matches, or see every result with its context
+> • A sidebar with the table of contents and page thumbnails
+> • Follow links inside a paper, then click Back to return where you were
+> • Picks up where you left off in each document
+>
+> READ YOUR WAY
+> • Vertical scrolling, page by page, or two pages side by side
+> • Menu commands and keyboard shortcuts for search, Go to Page, layout, and page color
+> • Open PDFs from Finder, or set NightPdf as your PDF viewer
+>
+> ALSO ON iPHONE AND iPAD
+> Lay your device on a table and knock beside it to scroll, hands-free.
+>
+> PRIVATE BY DESIGN
+> NightPdf has no accounts, no ads, and no tracking. Your documents never leave your Mac.
+
+**App Review notes**
+
+> NightPdf is a PDF reader. To try it, choose File → Open… and pick any PDF, or open a PDF from Finder with Open With → NightPdf.
+>
+> Dark pages: click the page color button in the toolbar (half-filled circle) and choose Dark, or use View → Page Color. Pages darken while figures keep their colors.
+>
+> Search with ⌘F; the list button next to the match count shows every result. The sidebar (⌃⌘S) shows the contents and page thumbnails.
+>
+> The app collects no data and makes no network requests.
