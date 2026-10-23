@@ -20,7 +20,7 @@ final class NightPDFView: PDFView {
     var sceneActivityChanged: ((Bool) -> Void)?
     /// Set up by the platform files as the view moves to a window.
     var sceneObservers: [NSObjectProtocol] = []
-    let overlays = PageOverlayProvider()
+    let highlighter = MatchHighlighter()
 
     #if os(iOS)
     /// Height of the floating bars over the bottom of the view, beyond the safe

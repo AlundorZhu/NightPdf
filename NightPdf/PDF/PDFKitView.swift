@@ -29,7 +29,7 @@ struct PDFKitView {
         }
         view.pageBreakMargins = UIEdgeInsets(top: 6, left: 0, bottom: 6, right: 0)
         #endif
-        view.pageOverlayViewProvider = view.overlays
+        view.pageOverlayViewProvider = view.highlighter
 
         model.attach(view)
         model.apply(invertsPages: invertsPages)

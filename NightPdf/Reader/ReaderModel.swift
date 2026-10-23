@@ -106,7 +106,6 @@ final class ReaderModel {
         // A new view starts from PDFKit's defaults, whatever was applied to an earlier one.
         appliedLayout = nil
         view.pageShadowsEnabled = !invertsPages
-        view.overlays.invertsPages = invertsPages
         let start = currentPageIndex
         let point = restorePoint
         let zoom = restoreZoom
@@ -181,7 +180,6 @@ final class ReaderModel {
         thumbnails.removeAllObjects()
         guard let view = pdfView else { return }
         view.pageShadowsEnabled = !inverts
-        view.overlays.invertsPages = inverts
         view.redrawPages()
     }
 
