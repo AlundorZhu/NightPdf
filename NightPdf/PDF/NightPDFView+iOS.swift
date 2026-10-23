@@ -37,6 +37,11 @@ extension NightPDFView {
         }
         layoutIfNeeded()
         let match = convert(selection.bounds(for: page), from: page)
+        // A match PDFKit can't place comes back as a null rect, which converts to NaN.
+        guard match.isFinite else {
+            go(to: page)
+            return
+        }
         let top = topInset + Self.jumpMargin
         let clear = top...(bounds.height * 0.45)   // the keyboard and bar cover the rest
         let fitsHorizontally = match.minX >= bounds.minX && match.maxX <= bounds.maxX

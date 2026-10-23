@@ -32,6 +32,10 @@ extension NightPDFView {
         let line = readingLine(in: scrollView)
         // Both in the clip view's coordinates, so the move is right whichever way y points.
         let delta = clipView.convert(target, from: self).y - clipView.convert(line, from: documentView).y
+        // Before the view has a size, e.g. straight after a reload, the reading
+        // line is NaN, and AppKit traps on NaN geometry. The position is kept
+        // for the next jump rather than lost.
+        guard delta.isFinite else { return }
         var visible = clipView.bounds
         visible.origin.y += delta
         clipView.scroll(to: clipView.constrainBoundsRect(visible).origin)
@@ -46,6 +50,12 @@ extension NightPDFView {
             return
         }
         let match = documentView.convert(convert(selection.bounds(for: page), from: page), from: self)
+        // A match PDFKit can't place comes back as a null rect, which converts to
+        // NaN, and AppKit traps on NaN geometry.
+        guard match.isFinite else {
+            go(to: page)
+            return
+        }
         documentView.scrollToVisible(match.insetBy(dx: -Self.revealMargin, dy: -Self.revealMargin))
     }
 
@@ -96,7 +106,9 @@ extension NightPDFView {
     private func readingLine(in scrollView: NSScrollView) -> CGPoint {
         let clipView = scrollView.contentView
         let visible = clipView.bounds
-        let down = scrollView.contentInsets.top + Self.jumpMargin
+        // The inset and margin are screen points; the clip view's bounds are
+        // zoomed with the document (bounds over frame is the magnification's inverse).
+        let down = (scrollView.contentInsets.top + Self.jumpMargin) * visible.height / clipView.frame.height
         let line = CGPoint(x: visible.minX + 1, y: clipView.isFlipped ? visible.minY + down : visible.maxY - down)
         return documentView?.convert(line, from: clipView) ?? line
     }

@@ -160,7 +160,7 @@ final class DocumentSearch {
     func select(_ index: Int) {
         currentIndex = index
         let result = results[index]
-        pdfView?.highlighter.setCurrent(result.lineRects, onPage: result.pageIndex)
+        pdfView?.overlays.setCurrent(result.lineRects, onPage: result.pageIndex)
         if let selection = selection(for: result) {
             reveal?(selection)
         }
@@ -221,7 +221,7 @@ final class DocumentSearch {
         currentIndex = nil
         isFinding = false
         isCapped = false
-        pdfView?.highlighter.removeAll()
+        pdfView?.overlays.removeAll()
     }
 
     private func add(_ batch: [SearchResult]) {
@@ -231,7 +231,7 @@ final class DocumentSearch {
                          lineRects: result.lineRects, snippet: result.snippet)
         }
         results.append(contentsOf: numbered)
-        pdfView?.highlighter.add(numbered.map { ($0.pageIndex, $0.lineRects) })
+        pdfView?.overlays.add(numbered.map { ($0.pageIndex, $0.lineRects) })
         // Start from where the reader is, not from page 1.
         if currentIndex == nil, let here = numbered.first(where: { $0.pageIndex >= startPage }) {
             select(here.id)

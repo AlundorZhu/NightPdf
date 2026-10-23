@@ -35,6 +35,9 @@ final class ReaderModel {
     @ObservationIgnored private var appliedLayout: PageLayout?
     /// Where on the restored page to scroll to when the PDF view attaches.
     @ObservationIgnored private var restorePoint: CGPoint?
+    /// A zoom chosen by the reader, to keep when the file is reloaded; nil
+    /// for fit to width.
+    @ObservationIgnored private var restoreZoom: CGFloat?
     /// Until the restore jump runs, the view shows the first page, which mustn't
     /// be saved over the position being restored.
     @ObservationIgnored private var isRestoring = false
@@ -65,9 +68,12 @@ final class ReaderModel {
     @ObservationIgnored private var printJob: PrintJob?
     #endif
 
-    init(data: Data, fileURL: URL?) {
+    /// `zoom` is a scale the reader chose in an earlier reader of the same
+    /// file, nil for fit to width.
+    init(data: Data, fileURL: URL?, zoom: CGFloat? = nil) {
         self.data = data
         self.fileURL = fileURL
+        restoreZoom = zoom
         // Password-protected and empty files aren't supported; they show as unopenable.
         let document = Signposts.signposter.withIntervalSignpost("Load Document") {
             NightDocument(data: data)
@@ -100,21 +106,34 @@ final class ReaderModel {
         // A new view starts from PDFKit's defaults, whatever was applied to an earlier one.
         appliedLayout = nil
         view.pageShadowsEnabled = !invertsPages
+        view.overlays.invertsPages = invertsPages
         let start = currentPageIndex
         let point = restorePoint
+        let zoom = restoreZoom
         restorePoint = nil
-        guard start > 0 || point != nil else { return }
+        restoreZoom = nil
+        guard start > 0 || point != nil || zoom != nil else { return }
         isRestoring = true
         // Wait for the first layout pass, otherwise PDFView ignores the jump.
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             isRestoring = false
+            if let zoom {
+                view.autoScales = false
+                view.scaleFactor = zoom
+            }
             guard let page = document?.page(at: start) else { return }
             let top = page.bounds(for: .cropBox)
             // Through `go(to:)`, which keeps the spot clear of the navigation bar.
             let destination = PDFDestination(page: page, at: point ?? CGPoint(x: top.minX, y: top.maxY))
             self.withoutHistory { view.go(to: destination) }
         }
+    }
+
+    /// The zoom the reader set by hand, nil while the pages fit the window.
+    var chosenZoom: CGFloat? {
+        guard let view = pdfView, !view.autoScales else { return nil }
+        return view.scaleFactor
     }
 
     // MARK: - Display settings
@@ -162,6 +181,7 @@ final class ReaderModel {
         thumbnails.removeAllObjects()
         guard let view = pdfView else { return }
         view.pageShadowsEnabled = !inverts
+        view.overlays.invertsPages = inverts
         view.redrawPages()
     }
 
@@ -362,11 +382,13 @@ final class ReaderModel {
         func build(_ item: PDFOutline) -> [OutlineNode] {
             (0..<item.numberOfChildren).compactMap { item.child(at: $0) }.map { child in
                 nextID += 1
+                // Taken before the children are numbered, which moves `nextID` on.
+                let id = nextID
                 let destination = child.destination ?? (child.action as? PDFActionGoTo)?.destination
-                visit(nextID, destination)
+                visit(id, destination)
                 let children = build(child)
                 return OutlineNode(
-                    id: nextID,
+                    id: id,
                     title: child.label ?? "Untitled",
                     destination: destination,
                     children: children.isEmpty ? nil : children

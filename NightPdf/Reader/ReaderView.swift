@@ -3,6 +3,7 @@
 //  NightPdf
 //
 
+import PDFKit
 import SwiftUI
 
 struct ReaderView: View {
@@ -31,19 +32,48 @@ struct ReaderView: View {
                 Color.clear
             }
         }
-        // DocumentGroup hands over new data when the file changes on disk
+        // DocumentGroup hands over new data when it hears of a change on disk
         // (iCloud, another app saving); reopen it at the same place.
-        .onChange(of: ContentsFingerprint(data), initial: true) { _, contents in
-            guard contents != loadedContents else { return }
-            if let model {
-                #if os(iOS)
-                model.listenForKnocks(false)
-                #endif
-                model.savePosition()
-            }
-            loadedContents = contents
-            model = ReaderModel(data: data, fileURL: fileURL)
+        .onChange(of: ContentsFingerprint(data), initial: true) { _, _ in
+            load(data)
         }
+        // It doesn't hear of a file rewritten by a tool, like a LaTeX build,
+        // so watch the file as well.
+        .task(id: fileURL) {
+            guard let fileURL else { return }
+            for await _ in FileWatcher.changes(at: fileURL) {
+                guard !Task.isCancelled, let data = Self.read(fileURL) else { continue }
+                load(data)
+            }
+        }
+    }
+
+    /// Shows `data`, unless it's what's already showing. The new reader opens
+    /// where the old one was, at the same zoom.
+    private func load(_ data: Data) {
+        let contents = ContentsFingerprint(data)
+        guard contents != loadedContents else { return }
+        var zoom: CGFloat?
+        if let model {
+            #if os(iOS)
+            model.listenForKnocks(false)
+            #endif
+            model.savePosition()
+            zoom = model.chosenZoom
+        }
+        loadedContents = contents
+        model = ReaderModel(data: data, fileURL: fileURL, zoom: zoom)
+    }
+
+    /// The file's contents, if they're a PDF that opens. A build still writing
+    /// the file isn't, and is left for the next change.
+    private static func read(_ url: URL) -> Data? {
+        var data: Data?
+        NSFileCoordinator().coordinate(readingItemAt: url, options: [], error: nil) { url in
+            data = try? Data(contentsOf: url)
+        }
+        guard let data, let document = PDFDocument(data: data), document.pageCount > 0 else { return nil }
+        return data
     }
 }
 
