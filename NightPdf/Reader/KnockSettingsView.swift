@@ -3,6 +3,9 @@
 //  NightPdf
 //
 
+// Knock to scroll is iPhone and iPad only: Core Motion has no accelerometer on the Mac.
+#if os(iOS)
+
 import SwiftUI
 
 /// Leaves the page showing and responding, so knocks can be tried out while
@@ -138,3 +141,4 @@ private struct KnockMeter: View {
         return min(max(log(g / low) / log(high / low), 0), 1)
     }
 }
+#endif

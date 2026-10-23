@@ -1,0 +1,27 @@
+{
+  "configurations": [
+    {
+      "id": "25E1D2F2-6AEA-4EFC-B060-8773455A0FFD",
+      "name": "Default",
+      "options": {}
+    }
+  ],
+  "defaultOptions": {},
+  "testTargets": [
+    {
+      "target": {
+        "containerPath": "container:NightPdf.xcodeproj",
+        "identifier": "8A21F616307C9A1C0007454A",
+        "name": "NightPdfTests"
+      }
+    },
+    {
+      "target": {
+        "containerPath": "container:NightPdf.xcodeproj",
+        "identifier": "8A21F5F0307C9A1C0007454A",
+        "name": "NightPdfUITests"
+      }
+    }
+  ],
+  "version": 1
+}

@@ -45,21 +45,32 @@ final class NightPage: PDFPage, @unchecked Sendable {
     }
 
     /// Renders through `draw(with:to:)` so thumbnails match the page colors;
-    /// `PDFPage.thumbnail(of:for:)` skips subclass drawing.
-    nonisolated func thumbnail(fitting size: CGSize) -> UIImage {
+    /// `PDFPage.thumbnail(of:for:)` skips subclass drawing. `scale` is the
+    /// screen's pixels per point. Nil if the bitmap can't be made.
+    nonisolated func thumbnail(fitting size: CGSize, scale pixelScale: CGFloat) -> PlatformImage? {
         let pageSize = displaySize(for: .cropBox)
         let scale = min(size.width / pageSize.width, size.height / pageSize.height)
         let imageSize = CGSize(width: pageSize.width * scale, height: pageSize.height * scale)
 
         return Signposts.signposter.withIntervalSignpost("Render Thumbnail") {
-            UIGraphicsImageRenderer(size: imageSize).image { context in
-                let cg = context.cgContext
-                UIColor.white.setFill()
-                cg.fill(CGRect(origin: .zero, size: imageSize))
-                cg.translateBy(x: 0, y: imageSize.height)
-                cg.scaleBy(x: scale, y: -scale)
-                draw(with: .cropBox, to: cg)
-            }
+            guard let space = CGColorSpace(name: CGColorSpace.sRGB),
+                  let cg = CGContext(
+                      data: nil, width: Int((imageSize.width * pixelScale).rounded(.up)),
+                      height: Int((imageSize.height * pixelScale).rounded(.up)), bitsPerComponent: 8,
+                      bytesPerRow: 0, space: space,
+                      bitmapInfo: CGImageAlphaInfo.noneSkipFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)
+            else { return nil }
+            cg.setFillColor(gray: 1, alpha: 1)
+            cg.fill(CGRect(x: 0, y: 0, width: cg.width, height: cg.height))
+            // Bitmap contexts already have PDF's upward y axis; no flip needed.
+            cg.scaleBy(x: scale * pixelScale, y: scale * pixelScale)
+            draw(with: .cropBox, to: cg)
+            guard let image = cg.makeImage() else { return nil }
+            #if os(macOS)
+            return NSImage(cgImage: image, size: imageSize)
+            #else
+            return UIImage(cgImage: image, scale: pixelScale, orientation: .up)
+            #endif
         }
     }
 

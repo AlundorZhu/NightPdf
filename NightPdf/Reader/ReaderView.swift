@@ -36,7 +36,9 @@ struct ReaderView: View {
         .onChange(of: ContentsFingerprint(data), initial: true) { _, contents in
             guard contents != loadedContents else { return }
             if let model {
+                #if os(iOS)
                 model.listenForKnocks(false)
+                #endif
                 model.savePosition()
             }
             loadedContents = contents
@@ -68,7 +70,34 @@ private struct ContentsFingerprint: Equatable {
     }
 }
 
-private struct DocumentReader: View {
+/// Back to where the last jump left from; a long press clears the history.
+struct ReturnButton: View {
+    let model: ReaderModel
+    let point: ReturnPoint
+
+    var body: some View {
+        Button {
+            withAnimation { model.returnToPrevious() }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "arrow.uturn.backward")
+                Text("\(point.pageIndex + 1)")
+                    .monospacedDigit()
+            }
+        }
+        .accessibilityLabel("Back to page \(point.pageIndex + 1)")
+        .contextMenu {
+            Button("Clear History", systemImage: "xmark", role: .destructive) {
+                withAnimation { model.clearReturnStack() }
+            }
+        }
+    }
+}
+
+#if os(iOS)
+/// The reader on iPhone and iPad: the page full screen, with floating bars
+/// that a tap hides. The Mac's is in ReaderView+macOS.swift.
+struct DocumentReader: View {
     let model: ReaderModel
     @Bindable var search: DocumentSearch
 
@@ -79,23 +108,15 @@ private struct DocumentReader: View {
 
     @State private var showingContents = false
     @State private var showingGoToPage = false
-    @State private var pageText = ""
     @State private var showingResults = false
     @State private var showingKnockSettings = false
     @State private var showsPageIndicator = false
     @FocusState private var searchFieldFocused: Bool
 
-    private var invertsPages: Bool {
-        switch appearance {
-        case .automatic: colorScheme == .dark
-        case .light: false
-        case .dark: true
-        }
-    }
-
     var body: some View {
         ZStack(alignment: .bottom) {
-            PDFKitView(model: model, layout: layout, invertsPages: invertsPages, hidesBars: model.isChromeHidden,
+            PDFKitView(model: model, layout: layout, invertsPages: appearance.invertsPages(in: colorScheme),
+                       hidesBars: model.isChromeHidden,
                        bottomObscuredHeight: search.isActive || !model.isChromeHidden ? Self.barHeight : 0)
                 .ignoresSafeArea()
 
@@ -111,6 +132,7 @@ private struct DocumentReader: View {
             }
         }
         .toolbar { toolbar }
+        .focusedSceneValue(\.readerActions, actions)
         // (`.statusBarHidden` has no effect under DocumentGroup's navigation controller.)
         .persistentSystemOverlays(model.isChromeHidden ? .hidden : .automatic)
         // With the bars hidden, show the page number for a moment as it changes.
@@ -139,36 +161,26 @@ private struct DocumentReader: View {
             model.listenForKnocks(false)
             model.savePosition()
         }
-        .alert("Go to Page", isPresented: $showingGoToPage) {
-            TextField("Page", text: $pageText)
-                .keyboardType(.numberPad)
-            Button("Go", action: goToEnteredPage)
-                .disabled(enteredPage == nil)
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Enter a page number between 1 and \(model.pageCount).")
-        }
+        .goToPageAlert(isPresented: $showingGoToPage, model: model)
+    }
+
+    /// For the menu bar, on iPad with a hardware keyboard.
+    private var actions: ReaderActions {
+        let canStep = search.isActive && !search.results.isEmpty
+        return ReaderActions(
+            find: { startSearch() },
+            findNext: canStep ? { search.next() } : nil,
+            findPrevious: canStep ? { search.previous() } : nil,
+            goToPage: { showingGoToPage = true },
+            print: { model.printDocument() }
+        )
     }
 
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
         if let point = model.returnStack.last {
             ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    withAnimation { model.returnToPrevious() }
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "arrow.uturn.backward")
-                        Text("\(point.pageIndex + 1)")
-                            .monospacedDigit()
-                    }
-                }
-                .accessibilityLabel("Back to page \(point.pageIndex + 1)")
-                .contextMenu {
-                    Button("Clear History", systemImage: "xmark", role: .destructive) {
-                        withAnimation { model.clearReturnStack() }
-                    }
-                }
+                ReturnButton(model: model, point: point)
             }
         }
 
@@ -227,7 +239,6 @@ private struct DocumentReader: View {
                 Spacer(minLength: 0)
 
                 Button {
-                    pageText = ""
                     showingGoToPage = true
                 } label: {
                     Text("\(model.currentPageIndex + 1) of \(model.pageCount)")
@@ -374,28 +385,11 @@ private struct DocumentReader: View {
     private var moreMenu: some View {
         Menu("More", systemImage: "ellipsis") {
             Button("Go to Page…", systemImage: "number") {
-                pageText = ""
                 showingGoToPage = true
             }
 
             Section {
-                Picker(selection: $layout) {
-                    ForEach(PageLayout.allCases) { option in
-                        Label(option.title, systemImage: option.systemImage).tag(option)
-                    }
-                } label: {
-                    Label("Layout", systemImage: layout.systemImage)
-                }
-                .pickerStyle(.menu)
-
-                Picker(selection: $appearance) {
-                    ForEach(PageAppearance.allCases) { option in
-                        Text(option.title).tag(option)
-                    }
-                } label: {
-                    Label("Page Color", systemImage: "circle.lefthalf.filled")
-                }
-                .pickerStyle(.menu)
+                DisplaySettingsPickers(layout: $layout, appearance: $appearance)
 
                 Button {
                     showingKnockSettings = true
@@ -415,17 +409,5 @@ private struct DocumentReader: View {
             }
         }
     }
-
-    /// The entered page number, if it's one the document has.
-    private var enteredPage: Int? {
-        guard let number = Int(pageText.trimmingCharacters(in: .whitespaces)),
-              (1...model.pageCount).contains(number)
-        else { return nil }
-        return number
-    }
-
-    private func goToEnteredPage() {
-        guard let enteredPage else { return }
-        model.go(toPage: enteredPage - 1)
-    }
 }
+#endif

@@ -17,7 +17,7 @@ xcrun simctl bootstatus "$UDID" -b >/dev/null
 
 [[ -f TestAssets/large.pdf ]] || swift TestAssets/tools/make-large-pdf.swift
 
-xcodebuild -project NightPdf.xcodeproj -scheme NightPdf -configuration "$CONFIG" -destination "id=$UDID" \
+xcodebuild -project NightPdf.xcodeproj -scheme NightPdf -testPlan AllTests -configuration "$CONFIG" -destination "id=$UDID" \
     -derivedDataPath "$DERIVED" build-for-testing -quiet
 xcrun simctl install "$UDID" "$DERIVED/Build/Products/$CONFIG-iphonesimulator/NightPdf.app"
 DOCS="$(xcrun simctl get_app_container "$UDID" ucdavis.NightPdf data)/Documents"
@@ -28,5 +28,5 @@ cp TestAssets/large.pdf "$DOCS/Large.pdf"
 
 [[ -n "$SHOTS" ]] && mkdir -p "$SHOTS" && export TEST_RUNNER_NIGHTPDF_SCREENSHOTS="$(cd "$SHOTS" && pwd)"
 if [[ -n "${ONLY:-}" ]]; then SELECT=(-only-testing:"$ONLY"); else SELECT=(-skip-testing:NightPdfUITests/PerformanceTests); fi
-xcodebuild -project NightPdf.xcodeproj -scheme NightPdf -configuration "$CONFIG" -destination "id=$UDID" \
+xcodebuild -project NightPdf.xcodeproj -scheme NightPdf -testPlan AllTests -configuration "$CONFIG" -destination "id=$UDID" \
     -derivedDataPath "$DERIVED" test-without-building "${SELECT[@]}"

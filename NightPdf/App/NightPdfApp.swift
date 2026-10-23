@@ -20,5 +20,11 @@ struct NightPdfApp: App {
         DocumentGroup(viewing: PDFFile.self) { file in
             ReaderView(data: file.document.data, fileURL: file.fileURL)
         }
+        .commands {
+            ReaderCommands()
+            #if os(macOS)
+            SidebarCommands()   // View > Show Sidebar, ⌃⌘S
+            #endif
+        }
     }
 }

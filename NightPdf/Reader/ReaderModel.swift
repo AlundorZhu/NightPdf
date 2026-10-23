@@ -25,7 +25,9 @@ final class ReaderModel {
     let document: NightDocument?
     let search: DocumentSearch?
     let fileURL: URL?
+    #if os(iOS)
     let knocks = KnockDetector.shared
+    #endif
     private let data: Data
 
     @ObservationIgnored weak var pdfView: NightPDFView?
@@ -38,8 +40,8 @@ final class ReaderModel {
     @ObservationIgnored private var isRestoring = false
     @ObservationIgnored private var positionSave: Task<Void, Never>?
     /// Rendered page thumbnails, by page and size. Costs are pixel counts.
-    @ObservationIgnored private let thumbnails: NSCache<NSString, UIImage> = {
-        let cache = NSCache<NSString, UIImage>()
+    @ObservationIgnored private let thumbnails: NSCache<NSString, PlatformImage> = {
+        let cache = NSCache<NSString, PlatformImage>()
         cache.totalCostLimit = 12_000_000   // about 48 MB
         return cache
     }()
@@ -51,9 +53,17 @@ final class ReaderModel {
     /// Each outline entry's page, by entry id; nil until resolved in the background.
     private(set) var outlinePageIndices: [OutlineNode.ID: Int]?
     private(set) var invertsPages = false
+    #if os(iOS)
+    /// Hidden by tapping the page. The Mac's toolbar and sidebar don't hide.
     var isChromeHidden = false
-    /// Whether the reader's window is in the foreground and active.
+    /// Whether the reader's window is in the foreground and active. Decides
+    /// whether to listen for knocks.
     private(set) var isSceneActive = true
+    #endif
+    #if os(macOS)
+    /// The print sheet in progress, kept until it's done with the document copy.
+    @ObservationIgnored private var printJob: PrintJob?
+    #endif
 
     init(data: Data, fileURL: URL?) {
         self.data = data
@@ -117,7 +127,9 @@ final class ReaderModel {
 
         switch layout {
         case .continuous:
+            #if os(iOS)
             view.usePageViewController(false)
+            #endif
             view.displayMode = .singlePageContinuous
             view.displayDirection = .vertical
             view.displaysAsBook = false
@@ -125,9 +137,13 @@ final class ReaderModel {
             view.displayMode = .singlePage
             view.displayDirection = .horizontal
             view.displaysAsBook = false
+            #if os(iOS)
             view.usePageViewController(true)
+            #endif
         case .twoUp:
+            #if os(iOS)
             view.usePageViewController(false)
+            #endif
             view.displayMode = .twoUpContinuous
             view.displayDirection = .vertical
             view.displaysAsBook = true
@@ -164,7 +180,9 @@ final class ReaderModel {
     }
 
     func sceneActivityChanged(_ isActive: Bool) {
+        #if os(iOS)
         isSceneActive = isActive
+        #endif
         if !isActive { savePosition() }
     }
 
@@ -192,7 +210,9 @@ final class ReaderModel {
 
         returnStack.append(ReturnPoint(destination: from, pageIndex: document.index(for: fromPage)))
         if returnStack.count > 50 { returnStack.removeFirst() }
-        isChromeHidden = false
+        #if os(iOS)
+        isChromeHidden = false   // so the way back shows
+        #endif
     }
 
     func go(toPage index: Int) {
@@ -214,12 +234,14 @@ final class ReaderModel {
         returnStack.removeAll()
     }
 
+    #if os(iOS)
     /// Scrolls about a screenful, or turns the page. Not a jump, so it isn't
     /// added to the return history.
     func step(forward: Bool) {
         if pdfView == nil { DebugLog.scroll("step skipped: no PDF view") }
         withoutHistory { pdfView?.step(forward: forward) }
     }
+    #endif
 
     private func withoutHistory(_ action: () -> Void) {
         suppressHistory = true
@@ -227,6 +249,7 @@ final class ReaderModel {
         suppressHistory = false
     }
 
+    #if os(iOS)
     // MARK: - Knock to scroll
 
     /// Every window's reader listens while it's active; knocks go to the one
@@ -241,40 +264,62 @@ final class ReaderModel {
             knocks.removeListener(self)
         }
     }
+    #endif
 
     // MARK: - Printing
 
     func printDocument() {
+        let jobName = fileURL?.deletingPathExtension().lastPathComponent ?? "Document"
+        #if os(macOS)
+        guard printJob == nil else { return }   // its sheet is already up
+        // A fresh copy of the file, so dark mode's inverted pages don't print.
+        guard let copy = PDFDocument(data: data),
+              let operation = copy.printOperation(for: .shared, scalingMode: .pageScaleToFit, autoRotate: true)
+        else { return }
+        operation.jobTitle = jobName
+        if let window = pdfView?.window {
+            // The sheet runs after this returns; the job keeps the copy alive until it's done.
+            let job = PrintJob(document: copy) { [weak self] in self?.printJob = nil }
+            printJob = job
+            operation.runModal(for: window, delegate: job,
+                               didRun: #selector(PrintJob.printOperationDidRun(_:success:contextInfo:)),
+                               contextInfo: nil)
+        } else {
+            operation.run()
+        }
+        #else
         let controller = UIPrintInteractionController.shared
         let info = UIPrintInfo.printInfo()
-        info.jobName = fileURL?.deletingPathExtension().lastPathComponent ?? "Document"
+        info.jobName = jobName
         controller.printInfo = info
         controller.printingItem = data
         controller.present(animated: true)
+        #endif
     }
 
     // MARK: - Helpers
 
     /// Kept, so reopening the page grid or scrolling back doesn't render again.
-    func thumbnail(forPage index: Int, fitting size: CGSize) async -> UIImage? {
-        let key = "\(index) \(Int(size.width))x\(Int(size.height))" as NSString
+    /// `scale` is the display's pixels per point.
+    func thumbnail(forPage index: Int, fitting size: CGSize, scale: CGFloat) async -> PlatformImage? {
+        let key = "\(index) \(Int(size.width))x\(Int(size.height))@\(scale)" as NSString
         if let image = thumbnails.object(forKey: key) { return image }
         guard let page = document?.page(at: index) as? NightPage else { return nil }
         let inverts = invertsPages
-        guard let image = await Self.renderThumbnail(of: page, fitting: size) else { return nil }
+        guard let image = await Self.renderThumbnail(of: page, fitting: size, scale: scale) else { return nil }
         // Don't keep one drawn in the old colors.
         if inverts == invertsPages {
-            let pixels = image.size.width * image.size.height * image.scale * image.scale
-            thumbnails.setObject(image, forKey: key, cost: Int(pixels))
+            thumbnails.setObject(image, forKey: key, cost: image.pixelCount)
         }
         return image
     }
 
     /// Off the main thread, so scrolling the page grid doesn't stall on rendering.
     @concurrent
-    private nonisolated static func renderThumbnail(of page: NightPage, fitting size: CGSize) async -> UIImage? {
+    private nonisolated static func renderThumbnail(of page: NightPage, fitting size: CGSize,
+                                                    scale: CGFloat) async -> PlatformImage? {
         guard !Task.isCancelled else { return nil }   // scrolled away before its turn
-        return page.thumbnail(fitting: size)
+        return page.thumbnail(fitting: size, scale: scale)
     }
 
     func pageIndex(of node: OutlineNode) -> Int? {
@@ -348,6 +393,24 @@ final class ReaderModel {
         }
     }
 }
+
+#if os(macOS)
+/// Holds the document a print sheet prints from, and hears when the sheet is done.
+private final class PrintJob: NSObject {
+    let document: PDFDocument
+    private let finished: () -> Void
+
+    init(document: PDFDocument, finished: @escaping () -> Void) {
+        self.document = document
+        self.finished = finished
+    }
+
+    @objc func printOperationDidRun(_ operation: NSPrintOperation, success: Bool,
+                                    contextInfo: UnsafeMutableRawPointer?) {
+        finished()
+    }
+}
+#endif
 
 /// Where each file was left, all under one key with the least recently read
 /// dropped, so opening many files doesn't grow the defaults without end.

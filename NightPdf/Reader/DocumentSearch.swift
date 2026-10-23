@@ -93,22 +93,23 @@ final class DocumentSearch {
     /// Batches already buffered by a cancelled search can still arrive; this
     /// tells them apart from the current search's.
     @ObservationIgnored private var generation = 0
-    @ObservationIgnored nonisolated(unsafe) private var memoryWarningObserver: NSObjectProtocol?
+    /// Lets go of the copies when the system runs low on memory. The same on
+    /// both platforms; the Mac has no memory warning notification.
+    @ObservationIgnored nonisolated(unsafe) private var memoryPressure: DispatchSourceMemoryPressure?
 
     init(document: PDFDocument, data: Data) {
         self.document = document
         self.data = data
-        memoryWarningObserver = NotificationCenter.default.addObserver(
-            forName: UIApplication.didReceiveMemoryWarningNotification, object: nil, queue: .main
-        ) { [weak self] _ in
+        let source = DispatchSource.makeMemoryPressureSource(eventMask: [.warning, .critical], queue: .main)
+        source.setEventHandler { [weak self] in
             MainActor.assumeIsolated { self?.copies = nil }
         }
+        source.resume()
+        memoryPressure = source
     }
 
     deinit {
-        if let memoryWarningObserver {
-            NotificationCenter.default.removeObserver(memoryWarningObserver)
-        }
+        memoryPressure?.cancel()
     }
 
     func begin() {
@@ -130,6 +131,15 @@ final class DocumentSearch {
         } else {
             find(text)
         }
+    }
+
+    /// While typing (the Mac's toolbar field): searches once the text is long
+    /// enough to narrow things down, and leaves a query that hasn't changed
+    /// alone, where `submit()` would move on.
+    func searchAsTyped() {
+        let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard text.count >= 2, text != searchedQuery else { return }
+        find(text)
     }
 
     func next() {

@@ -71,6 +71,9 @@ struct SearchResultsView: View {
         }
         .frame(maxHeight: .infinity, alignment: .top)
         .presentationDetents([.medium, .large])
+        #if os(macOS)
+        .frame(minWidth: 420, idealWidth: 480, minHeight: 400, idealHeight: 560)
+        #endif
     }
 
     private var title: String {
