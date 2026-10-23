@@ -196,7 +196,7 @@ final class KnockDetector {
             DebugLog.knock("no one is handling knocks")
             return
         }
-        keepScreenAwake()
+        if isEnabled { keepScreenAwake() }   // trying it out with the feature off shouldn't
         listener.onKnock(knock)
     }
 

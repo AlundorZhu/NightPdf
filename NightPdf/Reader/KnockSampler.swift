@@ -69,6 +69,8 @@ nonisolated final class KnockSampler: Sendable {
     func stop() {
         state.withLock { state in
             state.isRunning = false
+            // A touch that ends while stopped is never heard; don't treat every jolt after as touching.
+            state.isTouching = false
             state.previous = nil
             state.pendingJolts = 0
             state.heldLevel = 0
