@@ -1,0 +1,30 @@
+{
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "glass" : false,
+          "image-name" : "AppIcon.png",
+          "image-name-specializations" : [
+            {
+              "appearance" : "dark",
+              "value" : "AppIcon-Dark.png"
+            }
+          ],
+          "name" : "AppIcon"
+        }
+      ],
+      "shadow" : {
+        "kind" : "none",
+        "opacity" : 0
+      },
+      "translucency" : {
+        "enabled" : false,
+        "value" : 0
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "squares" : "shared"
+  }
+}
