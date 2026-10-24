@@ -30,6 +30,20 @@ final class AppStoreScreenshots: XCTestCase {
         cell.tap()
         sleep(3)
 
+        // The script runs this test twice: once with the simulator dark, once light.
+        if ProcessInfo.processInfo.environment["NIGHTPDF_LIGHT"] != nil {
+            app.buttons["More"].tap()
+            app.buttons["Page Color"].tap()
+            app.buttons["Light"].tap()
+            sleep(2)
+            app.buttons["Contents"].tap()
+            sleep(1)
+            app.buttons.matching(NSPredicate(format: "label CONTAINS 'Sensitivity at Night'")).firstMatch.tap()
+            sleep(2)
+            snap("6-light")
+            return
+        }
+
         app.buttons["More"].tap()
         app.buttons["Page Color"].tap()
         app.buttons["Dark"].tap()

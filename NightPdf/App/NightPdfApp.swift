@@ -20,6 +20,7 @@ struct NightPdfApp: App {
         DocumentGroup(viewing: PDFFile.self) { file in
             ReaderView(data: file.document.data, fileURL: file.fileURL)
         }
+        .defaultSize(width: 1440, height: 900)
         .commands {
             ReaderCommands()
             #if os(macOS)

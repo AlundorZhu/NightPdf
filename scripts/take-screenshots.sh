@@ -18,7 +18,6 @@ for DEVICE in "${DEVICES[@]}"; do
     UDID=$(xcrun simctl list devices available | grep -F "$DEVICE (" | tail -1 | grep -oE '[0-9A-F-]{36}')
     xcrun simctl boot "$UDID" 2>/dev/null || true
     xcrun simctl bootstatus "$UDID" -b >/dev/null
-    xcrun simctl ui "$UDID" appearance dark
     xcrun simctl status_bar "$UDID" override --time "9:41" --dataNetwork wifi --wifiBars 3 \
         --cellularMode active --cellularBars 4 --batteryState charged --batteryLevel 100
 
@@ -29,9 +28,15 @@ for DEVICE in "${DEVICES[@]}"; do
 
     SHOTS="AppStore/screenshots/$DEVICE"
     rm -rf "$SHOTS" && mkdir -p "$SHOTS"
-    TEST_RUNNER_NIGHTPDF_APPSTORE=1 TEST_RUNNER_NIGHTPDF_SCREENSHOTS="$(cd "$SHOTS" && pwd)" \
-        xcodebuild -project NightPdf.xcodeproj -scheme NightPdf -testPlan AllTests -configuration Debug \
-        -destination "id=$UDID" -derivedDataPath "$DERIVED" test-without-building \
-        -only-testing:NightPdfUITests/AppStoreScreenshots -quiet
+    # Dark captures 1-5; a second light pass captures 6-light.
+    for APPEARANCE in dark light; do
+        xcrun simctl ui "$UDID" appearance "$APPEARANCE"
+        [[ $APPEARANCE == light ]] && export TEST_RUNNER_NIGHTPDF_LIGHT=1
+        TEST_RUNNER_NIGHTPDF_APPSTORE=1 TEST_RUNNER_NIGHTPDF_SCREENSHOTS="$(cd "$SHOTS" && pwd)" \
+            xcodebuild -project NightPdf.xcodeproj -scheme NightPdf -testPlan AllTests -configuration Debug \
+            -destination "id=$UDID" -derivedDataPath "$DERIVED" test-without-building \
+            -only-testing:NightPdfUITests/AppStoreScreenshots -quiet
+    done
+    unset TEST_RUNNER_NIGHTPDF_LIGHT
     xcrun simctl status_bar "$UDID" clear
 done

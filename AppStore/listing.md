@@ -67,11 +67,20 @@ night,viewer,papers,documents,ebook,knock,hands-free,scroll,study,eye strain,inv
 
 Upload in this order (the first two appear in search results):
 
-- **iPhone 6.9"**: `AppStore/screenshots/iPhone 17 Pro Max/` → 1-night, 2-figure, 3-contents, 4-search, 5-pages
+- **iPhone 6.9"**: `AppStore/screenshots/iPhone 17 Pro Max/` → 1-night, 2-figure, 3-contents, 4-search, 5-pages, 6-light
 - **iPad 13"**: `AppStore/screenshots/iPad Pro 13-inch (M5)/` → same order
-- **Mac**: `AppStore/screenshots/Mac/` (2880×1800) → 1-night, 2-figure, 3-search, 4-pages
+- **Mac**: `AppStore/screenshots/Mac/` (2880×1800) → 1-night, 2-figure, 3-search, 4-pages, 5-light
 
-Regenerate the iPhone and iPad sets with `scripts/take-screenshots.sh`.
+Regenerate the iPhone and iPad sets with `scripts/take-screenshots.sh` (a dark pass, then a light pass).
+
+The Mac light shot comes from the Debug build in a 1440×900 window (the default size) on a Retina display:
+
+```
+PDF="$PWD/build/shots/How Owls See in the Dark.pdf"   # a copy of showcase.pdf; the sandbox needs Launch Services to open it
+open -n -a build/DerivedData/Build/Products/Debug/NightPdf.app "$PDF" --args \
+    -ApplePersistenceIgnoreState YES -pageAppearance light -showsSidebar YES "-lastPage:$PDF" 2
+screencapture -x -o -l <window id> AppStore/screenshots/Mac/5-light.png
+```
 
 ## App Privacy (left sidebar → App Privacy)
 
