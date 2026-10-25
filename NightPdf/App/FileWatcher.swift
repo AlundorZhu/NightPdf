@@ -12,7 +12,10 @@ import Foundation
 /// replaced, since most tools save by writing a new file and renaming it over
 /// the old one. Changes are reported once the file has been quiet for a
 /// moment, so a build in progress doesn't open a half-written file.
-enum FileWatcher {
+///
+/// Not main-actor isolated: the watcher runs on its own queue, and the
+/// stream's termination handler can run on any thread.
+nonisolated enum FileWatcher {
     static let settleDelay: Duration = .milliseconds(300)
 
     /// Reports a change each time the file's modification date or size differs

@@ -50,15 +50,15 @@ struct OutlineJumpTests {
         return try #require(PDFDocument(data: Data(file.utf8)))
     }
 
-    private static func makeView(_ document: PDFDocument, mode: PDFDisplayMode, width: CGFloat) -> (NightPDFView, AnyObject) {
+    private static func makeView(_ document: PDFDocument, mode: PDFDisplayMode, width: CGFloat) throws -> (NightPDFView, AnyObject) {
         let frame = CGRect(x: 0, y: 0, width: width, height: 700)
         let view = NightPDFView(frame: frame)
         #if os(macOS)
         let window = NSWindow(contentRect: frame, styleMask: [.titled], backing: .buffered, defer: false)
         window.contentView = view
         #else
-        let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene
-        let window = scene.map { UIWindow(windowScene: $0) } ?? UIWindow(frame: frame)
+        let scene = try #require(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let window = UIWindow(windowScene: scene)
         window.frame = frame
         window.addSubview(view)
         #endif
@@ -83,7 +83,7 @@ struct OutlineJumpTests {
     @Test(arguments: [PDFDisplayMode.singlePageContinuous, .twoUpContinuous, .singlePage], [300.0, 640.0, 1400.0])
     func entryGoesToItsPageAndSpot(mode: PDFDisplayMode, width: CGFloat) throws {
         let document = try Self.makeDocument()
-        let (view, window) = Self.makeView(document, mode: mode, width: width)
+        let (view, window) = try Self.makeView(document, mode: mode, width: width)
         defer { withExtendedLifetime(window) {} }
         let outline = try #require(document.outlineRoot)
         #expect(outline.numberOfChildren == Self.entries.count)

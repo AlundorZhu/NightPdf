@@ -26,15 +26,15 @@ struct VisibleDestinationTests {
     }
 
     /// A PDF view in an offscreen window, so it lays out its scroll view.
-    private static func makeView(_ document: PDFDocument, mode: PDFDisplayMode) -> (NightPDFView, AnyObject) {
+    private static func makeView(_ document: PDFDocument, mode: PDFDisplayMode) throws -> (NightPDFView, AnyObject) {
         let frame = CGRect(x: 0, y: 0, width: 500, height: 700)
         let view = NightPDFView(frame: frame)
         #if os(macOS)
         let window = NSWindow(contentRect: frame, styleMask: [.titled], backing: .buffered, defer: false)
         window.contentView = view
         #else
-        let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene
-        let window = scene.map { UIWindow(windowScene: $0) } ?? UIWindow(frame: frame)
+        let scene = try #require(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let window = UIWindow(windowScene: scene)
         window.frame = frame
         window.addSubview(view)
         #endif
@@ -56,7 +56,7 @@ struct VisibleDestinationTests {
     @Test(arguments: [PDFDisplayMode.singlePageContinuous, .twoUpContinuous])
     func savedPositionComesBackToTheSameSpot(mode: PDFDisplayMode) throws {
         let document = try Self.makeDocument()
-        let (view, window) = Self.makeView(document, mode: mode)
+        let (view, window) = try Self.makeView(document, mode: mode)
         defer { withExtendedLifetime(window) {} }
 
         // Even pages, which are on the left in two-up, where the position is
