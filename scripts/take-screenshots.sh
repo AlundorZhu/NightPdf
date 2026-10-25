@@ -1,12 +1,12 @@
 #!/bin/zsh
 # Captures the App Store screenshots into AppStore/screenshots/<device>/.
 # Usage: scripts/take-screenshots.sh [simulator name ...]
-# Defaults to the two sizes App Store Connect requires: 6.9" iPhone and 13" iPad.
+# Defaults to the two sizes App Store Connect requires: the medium-display iPhone and 13" iPad.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 DEVICES=("$@")
-(( ${#DEVICES} )) || DEVICES=("iPhone 17 Pro Max" "iPad Pro 13-inch (M5)")
+(( ${#DEVICES} )) || DEVICES=("iPhone 17 Pro" "iPad Pro 13-inch (M5)")
 DERIVED="build/DerivedData"
 
 [[ -f AppStore/showcase.pdf ]] || (cd AppStore && pdflatex -interaction=batchmode showcase.tex && pdflatex -interaction=batchmode showcase.tex)

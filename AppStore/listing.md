@@ -67,8 +67,9 @@ night,viewer,papers,documents,ebook,knock,hands-free,scroll,study,eye strain,inv
 
 Upload in this order (the first two appear in search results):
 
-- **iPhone 6.9"**: `AppStore/screenshots/iPhone 17 Pro Max/` → 1-night, 2-figure, 3-contents, 4-search, 5-pages, 6-light
+- **iPhone with Dynamic Island (medium display)**: `AppStore/screenshots/iPhone 17 Pro/` (1206×2622) → 1-night, 2-figure, 3-contents, 4-search, 5-pages, 6-light
 - **iPad 13"**: `AppStore/screenshots/iPad Pro 13-inch (M5)/` → same order
+- iPhone Duo and Apple Watch tabs: leave empty. The iPhone set is scaled for other iPhones, and there is no watch app.
 - **Mac**: `AppStore/screenshots/Mac/` (2880×1800) → 1-night, 2-figure, 3-search, 4-pages, 5-light
 
 Regenerate the iPhone and iPad sets with `scripts/take-screenshots.sh` (a dark pass, then a light pass).
