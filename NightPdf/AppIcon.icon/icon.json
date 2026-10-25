@@ -4,14 +4,19 @@
       "layers" : [
         {
           "glass" : false,
-          "image-name" : "AppIcon.png",
-          "image-name-specializations" : [
+          "hidden-specializations" : [
             {
               "appearance" : "dark",
-              "value" : "AppIcon-Dark.png"
+              "value" : true
             }
           ],
+          "image-name" : "AppIcon.png",
           "name" : "AppIcon"
+        },
+        {
+          "glass" : false,
+          "image-name" : "AppIcon-Dark.png",
+          "name" : "AppIcon-Dark"
         }
       ],
       "shadow" : {
