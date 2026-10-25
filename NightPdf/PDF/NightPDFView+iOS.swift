@@ -14,12 +14,12 @@ extension NightPDFView {
 
     /// PDFView scrolls a destination to the very top of its frame, which sits
     /// under the navigation bar. Nudge it down so the target shows below the bar.
+    /// An entry with no spot of its own goes to the top of its page.
     func alignBelowTop(_ destination: PDFDestination) {
-        guard let page = destination.page, let scrollView, isScrollingLayout,
-              destination.point.y != kPDFDestinationUnspecifiedValue
-        else { return }
+        guard let page = destination.page, let scrollView, isScrollingLayout else { return }
         layoutIfNeeded()
-        let target = convert(CGPoint(x: 0, y: destination.point.y), from: page)
+        let y = destination.point.y == kPDFDestinationUnspecifiedValue ? page.bounds(for: displayBox).maxY : destination.point.y
+        let target = convert(CGPoint(x: 0, y: y), from: page)
         let insets = scrollView.adjustedContentInset
         let maxY = max(scrollView.contentSize.height - scrollView.bounds.height + insets.bottom, -insets.top)
         var offset = scrollView.contentOffset

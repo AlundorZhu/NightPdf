@@ -103,7 +103,13 @@ struct OutlineJumpTests {
 
                 let label = "entry \(index) (page \(Self.entries[index].page)), \(mode) \(Int(width))pt wide, from \(start.map(String.init) ?? "previous")"
                 // Two-up shows a spread; the current page can be either side of it.
+                #if os(macOS)
                 let shown = view.currentPage.map(document.index(for:)) ?? -1
+                #else
+                // When several small pages fit on screen, PDFKit's current page on
+                // iOS is the one at the centre; what matters is the page at the top.
+                let shown = view.visibleDestination?.page.map(document.index(for:)) ?? -1
+                #endif
                 let onPage = mode == .twoUpContinuous ? shown / 2 == Self.entries[index].page / 2 : shown == Self.entries[index].page
                 #expect(onPage, "\(label): on page \(shown)")
                 // Only the continuous layouts scroll to a spot. (Every entry is far
@@ -116,7 +122,8 @@ struct OutlineJumpTests {
                 #if os(macOS)
                 let fromTop = view.bounds.maxY - target.y
                 #else
-                let fromTop = target.y - view.bounds.minY
+                // Below the safe area, where the navigation bar sits in the app.
+                let fromTop = target.y - view.bounds.minY - view.safeAreaInsets.top
                 #endif
                 if destination.point.y == Self.unspecified {
                     #expect((-1...NightPDFView.jumpMargin + 20).contains(fromTop), "\(label): page top \(fromTop)pt from the view's top")
