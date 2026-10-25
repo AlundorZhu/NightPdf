@@ -58,9 +58,10 @@ struct SearchSnippetTests {
 }
 
 struct SearchCapTests {
-    private static let sample = URL(filePath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent()
-        .appending(path: "TestAssets/sample.pdf")
+    /// Bundled with the tests (a link to TestAssets/sample.pdf): Xcode Cloud
+    /// runs tests on a machine without the source checkout.
+    private static let sample = Bundle(for: BundleToken.self).url(forResource: "sample", withExtension: "pdf")!
+    private final class BundleToken {}
 
     private func search(_ query: String, limit: Int) async throws -> (results: [SearchResult], isCapped: Bool) {
         let copies = SearchCopies(data: try Data(contentsOf: Self.sample))
